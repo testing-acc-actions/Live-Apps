@@ -289,7 +289,7 @@
 <script>
     // We will add the actual Lambda Function URL
     // after deploying the frontend and configuring CORS.
-    const API_URL = "PASTE_WEBSITE_COMPARE_FUNCTION_URL_HERE";
+    const API_URL = "https://bkfy4mlaxxxabnm2sjamkj6vla0ifsrn.lambda-url.us-east-1.on.aws/";
 
     const form = document.getElementById("compareForm");
     const productInputs = document.getElementById("productInputs");
@@ -355,7 +355,7 @@
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        if (API_URL.includes("PASTE_WEBSITE_COMPARE_FUNCTION_URL_HERE")) {
+        if (API_URL.includes("https://bkfy4mlaxxxabnm2sjamkj6vla0ifsrn.lambda-url.us-east-1.on.aws/")) {
             results.hidden = false;
             resultTitle.textContent = "API not connected yet";
             resultMessage.textContent =

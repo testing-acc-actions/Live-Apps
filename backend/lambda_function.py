@@ -86,7 +86,7 @@ def lambda_handler(event, context):
         if (
             isinstance(budget, bool)
             or not isinstance(budget, (int, float))
-            or budget < 0
+            or budget <= 0
         ):
             return response(400, {
                 "error": "Please provide a valid budget."

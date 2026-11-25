@@ -1,0 +1,16 @@
+
+version: 1
+
+applications:
+  - appRoot: frontend
+
+    frontend:
+      phases:
+        build:
+          commands:
+            - echo "Building Smart Product Compare static website"
+
+      artifacts:
+        baseDirectory: .
+        files:
+          - "**/*"

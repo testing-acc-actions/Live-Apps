@@ -1,0 +1,426 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartCompare | Smart Buying Decisions</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            color: #172033;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 22px 7%;
+        }
+
+        header h2 {
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        header span {
+            color: #60a5fa;
+        }
+
+        main {
+            max-width: 760px;
+            margin: 55px auto;
+            padding: 20px;
+        }
+
+        .intro {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .intro h1 {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .intro p {
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .panel {
+            background: white;
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.05);
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 9px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 13px;
+            margin-bottom: 16px;
+            border: 1px solid #dce2eb;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus {
+            outline: 2px solid #93c5fd;
+            border-color: #3b82f6;
+        }
+
+        .product-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .product-row input {
+            flex: 1;
+        }
+
+        .remove-button {
+            padding: 11px;
+            border: 0;
+            background: #fee2e2;
+            color: #991b1b;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button {
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .add-button {
+            background: white;
+            border: 1px solid #2563eb;
+            color: #2563eb;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+
+        .compare-button {
+            width: 100%;
+            border: 0;
+            background: #2563eb;
+            color: white;
+            padding: 15px;
+            border-radius: 9px;
+            font-weight: 700;
+        }
+
+        .compare-button:hover {
+            background: #1d4ed8;
+        }
+
+        .compare-button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .hint {
+            color: #64748b;
+            font-size: 12px;
+            margin: -8px 0 18px;
+        }
+
+        #results {
+            margin-top: 24px;
+            background: #eff6ff;
+            padding: 18px;
+            border-radius: 10px;
+        }
+
+        #results pre {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-size: 12px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        @media (max-width: 600px) {
+            main {
+                margin: 25px auto;
+            }
+
+            .intro h1 {
+                font-size: 28px;
+            }
+
+            .panel {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h2>Smart<span>Compare</span></h2>
+</header>
+
+<main>
+
+    <section class="intro">
+        <h1>Compare before you buy.</h1>
+        <p>
+            Compare products from Amazon and Flipkart.
+            Find the right product based on your budget
+            and buying priorities.
+        </p>
+    </section>
+
+    <section class="panel">
+
+        <form id="compareForm">
+
+            <label for="category">Product category</label>
+
+            <select id="category" required>
+                <option value="">Select category</option>
+                <option value="smartphones">Smartphones</option>
+                <option value="laptops">Laptops</option>
+                <option value="headphones">Headphones and earbuds</option>
+                <option value="tablets">Tablets</option>
+                <option value="smart-tvs">Smart TVs</option>
+                <option value="other">Other</option>
+            </select>
+
+            <label>Product URLs</label>
+
+            <div id="productInputs">
+
+                <div class="product-row">
+                    <input type="url" name="productUrl"
+                        placeholder="Paste first product URL"
+                        required>
+                </div>
+
+                <div class="product-row">
+                    <input type="url" name="productUrl"
+                        placeholder="Paste second product URL"
+                        required>
+                </div>
+
+            </div>
+
+            <p class="hint">
+                Add 2 to 5 Amazon India or Flipkart product links.
+            </p>
+
+            <button type="button" class="add-button" id="addProduct">
+                + Add another product
+            </button>
+
+            <label for="budget">Your total budget (INR)</label>
+
+            <input
+                type="number"
+                id="budget"
+                min="1"
+                step="1"
+                placeholder="Example: 30000"
+                required
+            >
+
+            <label for="priority">Your buying priority</label>
+
+            <select id="priority" required>
+                <option value="value_for_money">
+                    Best value for money
+                </option>
+                <option value="lowest_price">
+                    Lowest price
+                </option>
+                <option value="performance">
+                    Best performance
+                </option>
+                <option value="reliability">
+                    Long-term reliability
+                </option>
+            </select>
+
+            <button type="submit" class="compare-button" id="compareButton">
+                Compare products
+            </button>
+
+        </form>
+
+        <section id="results" hidden aria-live="polite">
+            <h3 id="resultTitle">Comparison result</h3>
+            <p id="resultMessage"></p>
+            <pre id="resultDetails"></pre>
+        </section>
+
+    </section>
+
+</main>
+
+<footer>
+    SmartCompare · Helping you make better buying decisions
+</footer>
+
+<script>
+    // We will add the actual Lambda Function URL
+    // after deploying the frontend and configuring CORS.
+    const API_URL = "PASTE_WEBSITE_COMPARE_FUNCTION_URL_HERE";
+
+    const form = document.getElementById("compareForm");
+    const productInputs = document.getElementById("productInputs");
+    const addButton = document.getElementById("addProduct");
+    const compareButton = document.getElementById("compareButton");
+
+    const results = document.getElementById("results");
+    const resultTitle = document.getElementById("resultTitle");
+    const resultMessage = document.getElementById("resultMessage");
+    const resultDetails = document.getElementById("resultDetails");
+
+    function updateProductControls() {
+        const rows = productInputs.querySelectorAll(".product-row");
+        const count = rows.length;
+
+        addButton.disabled = count >= 5;
+        addButton.textContent =
+            count >= 5 ? "Maximum 5 products added" : "+ Add another product";
+
+        rows.forEach((row, index) => {
+            const input = row.querySelector("input");
+            input.placeholder = `Paste product URL ${index + 1}`;
+
+            let remove = row.querySelector(".remove-button");
+
+            if (count > 2 && !remove) {
+                remove = document.createElement("button");
+                remove.type = "button";
+                remove.className = "remove-button";
+                remove.textContent = "Remove";
+
+                remove.addEventListener("click", () => {
+                    row.remove();
+                    updateProductControls();
+                });
+
+                row.appendChild(remove);
+            }
+
+            if (count <= 2 && remove) {
+                remove.remove();
+            }
+        });
+    }
+
+    addButton.addEventListener("click", () => {
+        if (productInputs.children.length >= 5) return;
+
+        const row = document.createElement("div");
+        row.className = "product-row";
+
+        const input = document.createElement("input");
+        input.type = "url";
+        input.name = "productUrl";
+        input.required = true;
+
+        row.appendChild(input);
+        productInputs.appendChild(row);
+
+        updateProductControls();
+    });
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        if (API_URL.includes("PASTE_WEBSITE_COMPARE_FUNCTION_URL_HERE")) {
+            results.hidden = false;
+            resultTitle.textContent = "API not connected yet";
+            resultMessage.textContent =
+                "We will connect the AWS Lambda endpoint in the next task.";
+            return;
+        }
+
+        const productUrls = Array.from(
+            productInputs.querySelectorAll("input")
+        ).map(input => input.value.trim());
+
+        if (productUrls.length < 2 || productUrls.length > 5) {
+            return;
+        }
+
+        const payload = {
+            category: document.getElementById("category").value,
+            productUrls,
+            budget: Number(document.getElementById("budget").value),
+            priority: document.getElementById("priority").value
+        };
+
+        compareButton.disabled = true;
+        compareButton.textContent = "Validating products...";
+
+        results.hidden = true;
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            results.hidden = false;
+            resultTitle.textContent =
+                data.status === "validation_success"
+                    ? "Product URLs validated"
+                    : "Please review your product information";
+
+            resultMessage.textContent =
+                data.message || data.error || "Request completed.";
+
+            resultDetails.textContent =
+                JSON.stringify(data, null, 2);
+
+        } catch (error) {
+            results.hidden = false;
+            resultTitle.textContent = "Connection problem";
+            resultMessage.textContent =
+                "Unable to reach the API. Check the endpoint and CORS configuration.";
+            resultDetails.textContent = error.message;
+
+        } finally {
+            compareButton.disabled = false;
+            compareButton.textContent = "Compare products";
+        }
+    });
+
+    updateProductControls();
+</script>
+
+</body>
+</html>

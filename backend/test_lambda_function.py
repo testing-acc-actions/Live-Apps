@@ -70,7 +70,16 @@ class LambdaHandlerTests(unittest.TestCase):
         result = lambda_handler(event, None)
 
         self.assertEqual(result["statusCode"], 400)
+        
+    def test_rejects_zero_budget(self):
+        event = make_event([
+            "https://www.amazon.in/dp/B0TEST12345",
+            "https://www.flipkart.com/example-product"
+        ], budget=0)
 
+        result = lambda_handler(event, None)
+
+        self.assertEqual(result["statusCode"], 400)
 
 if __name__ == "__main__":
     unittest.main()

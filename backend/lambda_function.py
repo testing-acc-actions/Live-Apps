@@ -205,31 +205,38 @@ Return valid JSON only, using this structure:
 """
 
     payload = {
-        "systemInstruction": {
-            "parts": [{
+    "systemInstruction": {
+        "parts": [
+            {
                 "text": (
                     "You are a careful product research assistant. "
                     "Be factual, transparent and conservative. "
                     "Never fabricate retrieved information."
                 )
-            }]
-        },
-        "contents": [{
+            }
+        ]
+    },
+    "contents": [
+        {
             "role": "user",
-            "parts": [{
-                "text": prompt
-            }]
-        }],
-        "tools": [{
+            "parts": [
+                {
+                    "text": prompt
+                }
+            ]
+        }
+    ],
+    "tools": [
+        {
             "url_context": {}
-        }],
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 1800,
-            "responseMimeType": "application/json"
-        }]
+        }
+    ],
+    "generationConfig": {
+        "temperature": 0.2,
+        "maxOutputTokens": 1800,
+        "responseMimeType": "application/json"
     }
-
+}
     request = urllib.request.Request(
         GEMINI_ENDPOINT,
         data=json.dumps(payload).encode("utf-8"),

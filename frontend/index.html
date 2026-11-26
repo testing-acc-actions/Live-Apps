@@ -1,235 +1,320 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SmartCompare | Smart Buying Decisions</title>
+<meta name="theme-color" content="#111827">
+<title>SmartCompare | Compare before you buy</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}
-header{background:#111827;color:white;padding:22px 7%}
-header h2{margin:0;letter-spacing:-.5px}
+:root{font-family:Inter,Arial,sans-serif;color:#172033;background:#f5f7fb}
+body{margin:0}
+header{background:#111827;color:#fff;padding:20px 7%}
+header h2{margin:0;font-size:22px;letter-spacing:-.5px}
 header span{color:#60a5fa}
-main{max-width:850px;margin:45px auto;padding:20px}
-.intro{text-align:center;margin-bottom:30px}
-.intro h1{font-size:36px;margin-bottom:12px}
-.intro p{color:#64748b;line-height:1.6}
-.panel{background:white;padding:28px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.05);margin-bottom:22px}
-label{display:block;font-weight:600;margin:12px 0 8px}
-input,select,textarea{width:100%;padding:13px;margin-bottom:12px;border:1px solid #dce2eb;border-radius:8px;font-size:14px;font-family:inherit}
-textarea{min-height:85px;resize:vertical}
-input:focus,select:focus,textarea:focus{outline:2px solid #93c5fd;border-color:#3b82f6}
-.product-card{border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin:15px 0}
-.product-card h3{margin:0 0 12px}
-button{cursor:pointer;font-size:14px}
-.add-button{background:white;border:1px solid #2563eb;color:#2563eb;padding:10px 14px;border-radius:8px;margin:5px 0 18px}
-.remove-button{background:#fee2e2;color:#991b1b;border:0;padding:9px 12px;border-radius:7px}
-.compare-button{width:100%;border:0;background:#2563eb;color:white;padding:15px;border-radius:9px;font-weight:700;margin-top:12px}
-.compare-button:disabled{opacity:.6;cursor:wait}
-.hint{color:#64748b;font-size:12px;line-height:1.5}
-#results{margin-top:24px;background:#eff6ff;padding:20px;border-radius:10px}
-.result-card{background:white;border:1px solid #dbeafe;border-radius:9px;padding:15px;margin:12px 0}
-.result-card h4{margin:0 0 8px}
-.result-card p{line-height:1.5}
-footer{text-align:center;padding:25px;color:#64748b;font-size:12px}
+main{max-width:900px;margin:42px auto;padding:0 20px}
+.hero{text-align:center;margin:0 auto 28px;max-width:680px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:1.5px;color:#2563eb;text-transform:uppercase}
+h1{font-size:clamp(30px,5vw,42px);letter-spacing:-1.5px;margin:10px 0}
+.hero p{color:#64748b;line-height:1.65;margin:0}
+.panel{background:#fff;border:1px solid #e7ebf2;border-radius:18px;padding:28px;box-shadow:0 12px 35px rgba(15,23,42,.06)}
+label{display:block;font-weight:650;font-size:14px;margin:18px 0 8px}
+input,select{width:100%;padding:14px;border:1px solid #d8dee9;border-radius:10px;background:#fff;font:inherit;font-size:14px;color:#172033}
+input:focus,select:focus{outline:3px solid #bfdbfe;border-color:#3b82f6}
+.help{font-size:12px;color:#64748b;line-height:1.5;margin:7px 0 0}
+.products-heading{display:flex;justify-content:space-between;align-items:center;margin-top:24px}
+.products-heading h3{font-size:17px;margin:0}
+.counter{font-size:12px;color:#64748b}
+.product-card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-top:12px;background:#fcfdff}
+.product-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.product-card label{margin-top:12px}
+.actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer}
+.secondary{border:1px solid #cbd5e1;color:#334155;background:#fff;border-radius:9px;padding:10px 13px;font-size:13px}
+.secondary:disabled{opacity:.5;cursor:not-allowed}
+.remove{border:0;background:#fff1f2;color:#be123c;border-radius:8px;padding:8px 10px;font-size:12px}
+.primary{width:100%;margin-top:22px;border:0;border-radius:10px;padding:15px;background:#2563eb;color:white;font-weight:700;font-size:15px}
+.primary:disabled{opacity:.6;cursor:wait}
+.notice{font-size:12px;color:#64748b;line-height:1.6;margin:14px 0 0}
+.status{margin-top:18px;padding:14px;border-radius:10px;font-size:13px;line-height:1.5}
+.status.info{background:#eff6ff;color:#1e40af}
+.status.error{background:#fff1f2;color:#9f1239}
+.status.success{background:#ecfdf5;color:#065f46}
+#results{margin-top:22px}
+.result-section{background:#fff;border:1px solid #e2e8f0;border-radius:13px;padding:18px;margin-top:12px}
+.result-section h3{margin:0 0 10px;font-size:17px}
+.result-section h4{margin:14px 0 6px;font-size:14px}
+.result-section p{margin:7px 0;color:#475569;line-height:1.55;font-size:14px}
+.result-section ul{padding-left:20px;margin:7px 0;color:#475569;font-size:13px;line-height:1.7}
+.product-result{border-top:1px solid #e2e8f0;padding-top:14px;margin-top:14px}
+.price{font-size:20px;font-weight:750;color:#0f172a}
+.muted{color:#64748b;font-size:12px}
+footer{text-align:center;color:#94a3b8;font-size:12px;padding:28px}
 [hidden]{display:none!important}
-@media(max-width:600px){main{margin:25px auto}.intro h1{font-size:28px}.panel{padding:20px}}
+@media(max-width:600px){main{margin:26px auto}.panel{padding:19px}.products-heading{align-items:flex-start;gap:8px}}
 </style>
 </head>
 <body>
 <header><h2>Smart<span>Compare</span></h2></header>
 <main>
-<section class="intro">
+<section class="hero">
+<div class="eyebrow">Smarter shopping starts here</div>
 <h1>Compare before you buy.</h1>
-<p>Compare products from Amazon and Flipkart. Understand their features, prices and tradeoffs before making a buying decision.</p>
+<p>Add product links from Amazon India or Flipkart. SmartCompare will try to retrieve the listing details and explain the differences, strengths and trade-offs.</p>
 </section>
 
 <section class="panel">
 <form id="compareForm">
-<label for="category">Product category</label>
+<label for="category">What are you comparing?</label>
 <select id="category" required>
-<option value="">Select category</option>
+<option value="">Select a product category</option>
 <option value="smartphones">Smartphones</option>
 <option value="laptops">Laptops</option>
 <option value="headphones">Headphones and earbuds</option>
 <option value="tablets">Tablets</option>
-<option value="smart-tvs">Smart TVs</option>
+<option value="smart TVs">Smart TVs</option>
 <option value="other">Other</option>
 </select>
 
-<div style="display:flex;justify-content:space-between;align-items:center">
-<h3>Product information</h3>
-<span class="hint">2–5 products</span>
+<div class="products-heading">
+<h3>Product links</h3>
+<span class="counter" id="productCount">2 of 5 products</span>
 </div>
-
 <div id="products">
 <div class="product-card">
-<h3>Product 1</h3>
-<label>Product URL</label>
-<input type="url" name="productUrl" placeholder="Amazon or Flipkart product URL" required>
-<label>Product name</label>
-<input type="text" name="productName" placeholder="Example: Samsung Galaxy M35" maxlength="150" required>
-<label>Price (INR)</label>
-<input type="number" name="productPrice" min="1" step="1" placeholder="Example: 18000" required>
-<label>Specifications and features</label>
-<textarea name="productFeatures" placeholder="Example: Battery: 6000 mAh&#10;Display: Super AMOLED&#10;Camera: 50 MP" maxlength="2000" required></textarea>
+<div class="product-title">Product 1</div>
+<label>Amazon India or Flipkart URL</label>
+<input type="url" name="productUrl" placeholder="https://www.amazon.in/... or https://www.flipkart.com/..." required>
 </div>
 <div class="product-card">
-<h3>Product 2</h3>
-<label>Product URL</label>
-<input type="url" name="productUrl" placeholder="Amazon or Flipkart product URL" required>
-<label>Product name</label>
-<input type="text" name="productName" placeholder="Example: Motorola Edge 50 Fusion" maxlength="150" required>
-<label>Price (INR)</label>
-<input type="number" name="productPrice" min="1" step="1" placeholder="Example: 22000" required>
-<label>Specifications and features</label>
-<textarea name="productFeatures" placeholder="Example: Battery: 5000 mAh&#10;Display: pOLED&#10;Camera: 50 MP" maxlength="2000" required></textarea>
+<div class="product-title">Product 2</div>
+<label>Amazon India or Flipkart URL</label>
+<input type="url" name="productUrl" placeholder="https://www.amazon.in/... or https://www.flipkart.com/..." required>
 </div>
 </div>
-
-<button type="button" class="add-button" id="addProduct">+ Add another product</button>
-
-<label for="budget">Your total budget (INR)</label>
-<input type="number" id="budget" min="1" step="1" placeholder="Example: 30000" required>
-
-<label for="priority">Your buying priority</label>
-<select id="priority" required>
-<option value="value_for_money">Best value for money</option>
-<option value="lowest_price">Lowest price</option>
-<option value="performance">Best performance</option>
-<option value="reliability">Long-term reliability</option>
-</select>
-
-<p class="hint">Enter product information from the marketplace listing. Prices and specifications are not independently verified by SmartCompare.</p>
-
-<button type="submit" class="compare-button" id="compareButton">Prepare comparison</button>
+<div class="actions">
+<button type="button" class="secondary" id="addProduct">+ Add another product</button>
+</div>
+<button type="submit" class="primary" id="compareButton">Compare products</button>
+<p class="notice">Product details depend on whether the marketplace page is publicly accessible. Prices and availability may be incomplete or outdated. SmartCompare will identify missing information rather than assume it.</p>
 </form>
-
+<div id="status" class="status info" role="status" aria-live="polite" hidden></div>
 <section id="results" hidden aria-live="polite">
-<h3 id="resultTitle">Comparison preview</h3>
-<p id="resultMessage"></p>
-<div id="resultCards"></div>
-<pre id="resultDetails" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px"></pre>
+<div class="result-section">
+<h3>AI comparison</h3>
+<p id="summary"></p>
+</div>
+<div id="productResults"></div>
+<div class="result-section">
+<h3>Comparison and recommendation</h3>
+<div id="comparison"></div>
+</div>
+<div class="result-section">
+<h3>Data limitations</h3>
+<ul id="limitations"></ul>
+<p class="muted" id="dataNotice"></p>
+</div>
 </section>
 </section>
 </main>
-<footer>SmartCompare · Helping you make better buying decisions</footer>
+<footer>SmartCompare · Independent product research, with transparent data limitations</footer>
 
 <script>
-const form=document.getElementById("compareForm");
-const products=document.getElementById("products");
-const addButton=document.getElementById("addProduct");
-const compareButton=document.getElementById("compareButton");
-const results=document.getElementById("results");
+const API_URL = "https://bkfy4mlaxxxabnm2sjamkj6vla0ifsrn.lambda-url.us-east-1.on.aws/";
+const form = document.getElementById("compareForm");
+const products = document.getElementById("products");
+const addButton = document.getElementById("addProduct");
+const compareButton = document.getElementById("compareButton");
+const statusBox = document.getElementById("status");
+const results = document.getElementById("results");
 
-function updateProducts(){
-const cards=products.querySelectorAll(".product-card");
-cards.forEach((card,index)=>{
-card.querySelector("h3").textContent=`Product ${index+1}`;
-let remove=card.querySelector(".remove-button");
-if(cards.length>2&&!remove){
-remove=document.createElement("button");
-remove.type="button";
-remove.className="remove-button";
-remove.textContent="Remove product";
-remove.addEventListener("click",()=>{
-card.remove();
-updateProducts();
-});
-card.appendChild(remove);
-}
-if(cards.length<=2&&remove)remove.remove();
-});
-addButton.disabled=cards.length>=5;
-addButton.textContent=cards.length>=5?"Maximum 5 products added":"+ Add another product";
+function setStatus(message, type="info") {
+  statusBox.className = "status " + type;
+  statusBox.textContent = message;
+  statusBox.hidden = false;
 }
 
-addButton.addEventListener("click",()=>{
-if(products.children.length>=5)return;
-const card=document.createElement("div");
-card.className="product-card";
-card.innerHTML=`
-<h3></h3>
-<label>Product URL</label>
-<input type="url" name="productUrl" placeholder="Amazon or Flipkart product URL" required>
-<label>Product name</label>
-<input type="text" name="productName" placeholder="Enter product name" maxlength="150" required>
-<label>Price (INR)</label>
-<input type="number" name="productPrice" min="1" step="1" placeholder="Enter price" required>
-<label>Specifications and features</label>
-<textarea name="productFeatures" placeholder="Enter specifications and features" maxlength="2000" required></textarea>`;
-products.appendChild(card);
-updateProducts();
-});
-
-form.addEventListener("submit",(event)=>{
-event.preventDefault();
-
-const cards=Array.from(products.querySelectorAll(".product-card"));
-const productData=cards.map(card=>({
-url:card.querySelector('[name="productUrl"]').value.trim(),
-name:card.querySelector('[name="productName"]').value.trim(),
-price:Number(card.querySelector('[name="productPrice"]').value),
-features:card.querySelector('[name="productFeatures"]').value.trim()
-}));
-
-const allowedHosts=["amazon.in","www.amazon.in","flipkart.com","www.flipkart.com"];
-for(const product of productData){
-try{
-const host=new URL(product.url).hostname.toLowerCase();
-if(!allowedHosts.includes(host)){
-alert("Please use a valid Amazon India or Flipkart product URL.");
-return;
-}
-}catch{
-alert("Please enter a valid product URL.");
-return;
-}
+function updateProducts() {
+  const cards = [...products.querySelectorAll(".product-card")];
+  cards.forEach((card, index) => {
+    card.querySelector(".product-title").textContent = "Product " + (index + 1);
+    let remove = card.querySelector(".remove");
+    if (cards.length > 2 && !remove) {
+      remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", () => {
+        card.remove();
+        updateProducts();
+      });
+      card.appendChild(remove);
+    } else if (cards.length <= 2 && remove) {
+      remove.remove();
+    }
+  });
+  addButton.disabled = cards.length >= 5;
+  document.getElementById("productCount").textContent = cards.length + " of 5 products";
 }
 
-const budget=Number(document.getElementById("budget").value);
-if(!Number.isFinite(budget)||budget<=0){
-alert("Please enter a valid budget.");
-return;
-}
-
-const payload={
-action:"ai_summary",
-category:document.getElementById("category").value,
-budget,
-priority:document.getElementById("priority").value,
-products:productData.map(p=>({
-name:p.name,
-price:p.price,
-features:{description:p.features,product_url:p.url}
-}))
-};
-
-results.hidden=false;
-document.getElementById("resultTitle").textContent="Product information ready";
-document.getElementById("resultMessage").textContent="Your comparison data has been prepared. This is a preview only; public Gemini requests remain disabled until API protection is implemented.";
-const resultCards=document.getElementById("resultCards");
-resultCards.replaceChildren();
-
-productData.forEach(product=>{
-const card=document.createElement("div");
-card.className="result-card";
-const heading=document.createElement("h4");
-heading.textContent=product.name;
-const price=document.createElement("p");
-price.textContent=`Price: ₹${product.price.toLocaleString("en-IN")}`;
-const features=document.createElement("p");
-features.textContent=product.features;
-card.append(heading,price,features);
-resultCards.appendChild(card);
+addButton.addEventListener("click", () => {
+  if (products.children.length >= 5) return;
+  const card = document.createElement("div");
+  card.className = "product-card";
+  const title = document.createElement("div");
+  title.className = "product-title";
+  title.textContent = "Product";
+  const label = document.createElement("label");
+  label.textContent = "Amazon India or Flipkart URL";
+  const input = document.createElement("input");
+  input.type = "url";
+  input.name = "productUrl";
+  input.required = true;
+  input.placeholder = "https://www.amazon.in/... or https://www.flipkart.com/...";
+  card.append(title, label, input);
+  products.appendChild(card);
+  updateProducts();
 });
 
-document.getElementById("resultDetails").textContent=
-"Request preview (not sent to the public API):\n"+
-JSON.stringify(payload,null,2);
+function addTextElement(parent, tag, text, className) {
+  const el = document.createElement(tag);
+  el.textContent = text == null || text === "" ? "Not available" : String(text);
+  if (className) el.className = className;
+  parent.appendChild(el);
+  return el;
+}
 
-results.scrollIntoView({behavior:"smooth"});
+function addList(parent, heading, items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  addTextElement(parent, "h4", heading);
+  const ul = document.createElement("ul");
+  items.forEach(item => addTextElement(ul, "li", item));
+  parent.appendChild(ul);
+}
+
+function renderResults(data) {
+  const result = data.result || {};
+  document.getElementById("summary").textContent = result.summary || "No summary was returned.";
+  const productResults = document.getElementById("productResults");
+  productResults.replaceChildren();
+
+  (result.products || []).forEach(product => {
+    const card = document.createElement("div");
+    card.className = "result-section";
+    addTextElement(card, "h3", product.product_name || "Product details unavailable");
+    addTextElement(card, "p", (product.brand || "Brand unavailable") + " · " + (product.marketplace || "Marketplace unknown"));
+    const price = product.price || {};
+    addTextElement(card, "div",
+      price.amount == null ? "Price not available" :
+      (price.currency === "INR" ? "₹" : price.currency + " ") + Number(price.amount).toLocaleString("en-IN"),
+      "price");
+    addTextElement(card, "p", "Price status: " + (price.status || "unknown") + " · Availability: " + (product.availability || "unknown"));
+    const specs = product.key_specifications || [];
+    if (specs.length) {
+      addTextElement(card, "h4", "Key specifications");
+      const ul = document.createElement("ul");
+      specs.forEach(spec => addTextElement(ul, "li", (spec.name || "Specification") + ": " + (spec.value || "Not available")));
+      card.appendChild(ul);
+    }
+    addList(card, "Strengths", product.strengths);
+    addList(card, "Trade-offs", product.tradeoffs);
+    const source = document.createElement("p");
+    source.className = "muted";
+    source.textContent = "Source: " + (product.source_url || "Not provided");
+    card.appendChild(source);
+    productResults.appendChild(card);
+  });
+
+  const comparison = document.getElementById("comparison");
+  comparison.replaceChildren();
+  const comp = result.comparison || {};
+  addTextElement(comparison, "p", "Price difference: " + (comp.price_difference || "Not available"));
+  addTextElement(comparison, "p", "Brand assessment: " + (comp.brand_assessment || "Not available"));
+  if (Array.isArray(comp.feature_comparison) && comp.feature_comparison.length) {
+    addTextElement(comparison, "h4", "Feature comparison");
+    const ul = document.createElement("ul");
+    comp.feature_comparison.forEach(item => addTextElement(ul, "li", typeof item === "string" ? item : JSON.stringify(item)));
+    comparison.appendChild(ul);
+  }
+  const rec = result.recommendations || {};
+  addTextElement(comparison, "h4", "Recommendations");
+  addTextElement(comparison, "p", "Best overall: " + (rec.best_overall || "Insufficient data"));
+  addTextElement(comparison, "p", "Best value: " + (rec.best_value || "Insufficient data"));
+  addTextElement(comparison, "p", "Best features: " + (rec.best_features || "Insufficient data"));
+  addTextElement(comparison, "p", rec.reason || "");
+  addTextElement(comparison, "p", "Caveat: " + (rec.caveat || "Check product details before purchasing."));
+
+  const limitations = document.getElementById("limitations");
+  limitations.replaceChildren();
+  (result.data_limitations || []).forEach(item => addTextElement(limitations, "li", item));
+  if (!limitations.children.length) addTextElement(limitations, "li", "No additional limitations were reported.");
+  document.getElementById("dataNotice").textContent = data.dataNotice || "";
+  results.hidden = false;
+}
+
+form.addEventListener("submit", async event => {
+  event.preventDefault();
+  results.hidden = true;
+
+  const category = document.getElementById("category").value;
+  const productUrls = [...products.querySelectorAll('input[name="productUrl"]')].map(input => input.value.trim());
+
+  if (!category) {
+    setStatus("Please select a product category.", "error");
+    return;
+  }
+  if (productUrls.length < 2 || productUrls.length > 5) {
+    setStatus("Please provide between 2 and 5 product links.", "error");
+    return;
+  }
+
+  const allowedHosts = ["amazon.in", "www.amazon.in", "flipkart.com", "www.flipkart.com"];
+  for (const value of productUrls) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname.toLowerCase())) {
+        setStatus("Use HTTPS product links from Amazon India or Flipkart only.", "error");
+        return;
+      }
+    } catch {
+      setStatus("One of the product links is not a valid URL.", "error");
+      return;
+    }
+  }
+
+  compareButton.disabled = true;
+  compareButton.textContent = "Retrieving product information…";
+  setStatus("Sending product links for retrieval and comparison. This may take several seconds.", "info");
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "ai_summary", category, productUrls})
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      if (response.status === 403) {
+        setStatus("The backend is currently protected against public AI requests. The website form is ready, but public comparison will be enabled after we add API abuse protection.", "error");
+      } else {
+        setStatus((data.message || "The comparison request failed.") + " (HTTP " + response.status + ")", "error");
+      }
+      return;
+    }
+
+    if (data.status !== "comparison_generated") {
+      setStatus(data.message || "The comparison could not be generated.", "error");
+      return;
+    }
+    setStatus("Comparison generated. Review the retrieved information and its limitations below.", "success");
+    renderResults(data);
+  } catch (error) {
+    setStatus("Could not reach the comparison service. Check the API connection and CORS configuration.", "error");
+  } finally {
+    compareButton.disabled = false;
+    compareButton.textContent = "Compare products";
+  }
 });
 
 updateProducts();

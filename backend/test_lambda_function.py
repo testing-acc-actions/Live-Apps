@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from lambda_function import lambda_handler
+from lambda_function import lambda_handler, normalize_comparison
 
 
 def make_event(product_urls, priority="value_for_money", budget=30000):
@@ -144,6 +144,106 @@ class LambdaHandlerTests(unittest.TestCase):
         result = lambda_handler(event, None)
 
         self.assertEqual(result["statusCode"], 405)
+
+
+    def test_script_payload_is_classified_as_failed_retrieval(self):
+        comparison = {
+            "products": [{
+                "product_name": "window.__NEXT_DATA__",
+                "brand": "Unavailable",
+                "key_specifications": [{
+                    "name": "webpack chunk",
+                    "value": "javascript application/ld+json"
+                }]
+            }],
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/example/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted)
+
+        self.assertEqual(result["products"][0]["retrieval_status"], "failed")
+        self.assertEqual(result["products"][0]["key_specifications"], [])
+        self.assertEqual(result["products"][0]["price"]["amount"], None)
+        self.assertEqual(result["recommendations"]["best_overall"], "insufficient data")
+
+    def test_two_products_with_supported_specs_can_be_verified(self):
+        comparison = {
+            "products": [
+                {
+                    "product_name": "Phone A",
+                    "brand": "Brand A",
+                    "variant_match": True,
+                    "key_specifications": [
+                        {"name": "Storage", "value": "256 GB"},
+                        {"name": "Display", "value": "6.7 inch"}
+                    ]
+                },
+                {
+                    "product_name": "Phone B",
+                    "brand": "Brand B",
+                    "variant_match": True,
+                    "key_specifications": [
+                        {"name": "Storage", "value": "128 GB"},
+                        {"name": "Display", "value": "6.5 inch"}
+                    ]
+                }
+            ],
+            "comparison": {},
+            "recommendations": {},
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/a/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted)
+
+        self.assertEqual(result["products"][0]["retrieval_status"], "verified")
+        self.assertEqual(result["products"][1]["retrieval_status"], "verified")
+
+    def test_only_one_usable_product_forces_insufficient_recommendations(self):
+        comparison = {
+            "products": [
+                {
+                    "product_name": "Phone A",
+                    "brand": "Brand A",
+                    "variant_match": True,
+                    "key_specifications": [
+                        {"name": "Storage", "value": "256 GB"},
+                        {"name": "Display", "value": "6.7 inch"}
+                    ]
+                },
+                {
+                    "product_name": "Unavailable",
+                    "brand": "Unavailable",
+                    "key_specifications": []
+                }
+            ],
+            "comparison": {},
+            "recommendations": {
+                "best_overall": "Phone A",
+                "best_value": "Phone A",
+                "best_features": "Phone A"
+            },
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/a/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted)
+
+        self.assertEqual(result["products"][0]["retrieval_status"], "verified")
+        self.assertEqual(result["products"][1]["retrieval_status"], "failed")
+        self.assertEqual(result["recommendations"]["best_overall"], "insufficient data")
+        self.assertEqual(result["comparison"]["feature_comparison"], [])
+
 
 
 if __name__ == "__main__":

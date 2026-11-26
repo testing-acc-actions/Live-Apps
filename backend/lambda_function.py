@@ -119,6 +119,205 @@ def prepare_ai_input(event):
     }
 
 
+
+TECHNICAL_CONTENT_MARKERS = (
+    "__NEXT_DATA__",
+    "webpack",
+    "javascript",
+    "<script",
+    "</script",
+    "window.",
+    "document.",
+    "application/ld+json",
+    "sourceMappingURL",
+    "chunkloaderror",
+    "hydration",
+    "polyfill",
+)
+
+
+def is_unavailable(value):
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() in {
+        "", "unavailable", "unknown", "not available", "n/a", "null", "none"
+    }
+
+
+def looks_like_technical_payload(value):
+    if not isinstance(value, str):
+        return True
+    lowered = value.lower()
+    return any(marker in lowered for marker in TECHNICAL_CONTENT_MARKERS)
+
+
+def normalize_comparison(comparison, submitted_products):
+    """Apply conservative server-side checks to Gemini's product JSON."""
+    if not isinstance(comparison, dict):
+        raise RuntimeError("Gemini returned an invalid comparison object.")
+
+    products = comparison.get("products")
+    if not isinstance(products, list):
+        products = []
+
+    normalized_products = []
+    limitations = comparison.get("data_limitations")
+    if not isinstance(limitations, list):
+        limitations = []
+
+    for index, submitted in enumerate(submitted_products):
+        item = products[index] if index < len(products) and isinstance(products[index], dict) else {}
+
+        name = item.get("product_name")
+        brand = item.get("brand")
+        if is_unavailable(name) or looks_like_technical_payload(name):
+            name = "Unavailable"
+        if is_unavailable(brand) or looks_like_technical_payload(brand):
+            brand = "Unavailable"
+
+        raw_specs = item.get("key_specifications")
+        if not isinstance(raw_specs, list):
+            raw_specs = []
+
+        specs = []
+        for spec in raw_specs:
+            if not isinstance(spec, dict):
+                continue
+            spec_name = spec.get("name")
+            spec_value = spec.get("value")
+            if not isinstance(spec_name, str) or not isinstance(spec_value, (str, int, float)):
+                continue
+            if is_unavailable(spec_name) or is_unavailable(str(spec_value)):
+                continue
+            if looks_like_technical_payload(spec_name) or looks_like_technical_payload(str(spec_value)):
+                continue
+            if len(spec_name) > 80 or len(str(spec_value)) > 180:
+                continue
+            specs.append({
+                "name": spec_name.strip(),
+                "value": str(spec_value).strip()
+            })
+        specs = specs[:12]
+
+        price = item.get("price")
+        if not isinstance(price, dict):
+            price = {}
+        amount = price.get("amount")
+        price_status = price.get("status", "not_found")
+        if (
+            isinstance(amount, bool)
+            or not isinstance(amount, (int, float))
+            or not math.isfinite(amount)
+            or amount <= 0
+        ):
+            amount = None
+            price_status = "not_found"
+        elif price_status != "verified":
+            price_status = "uncertain"
+
+        variant_match = item.get("variant_match")
+        if variant_match not in (True, False):
+            variant_match = None
+
+        has_identity = not is_unavailable(name)
+        has_supporting_details = bool(specs) or not is_unavailable(brand) or amount is not None
+
+        if has_identity and not looks_like_technical_payload(name) and len(specs) >= 2 and variant_match is True:
+            retrieval_status = "verified"
+        elif has_identity or has_supporting_details:
+            retrieval_status = "partial"
+        else:
+            retrieval_status = "failed"
+
+        if retrieval_status == "failed":
+            name = "Unavailable"
+            brand = "Unavailable"
+            specs = []
+            amount = None
+            price_status = "not_found"
+            availability = "unknown"
+        else:
+            availability = item.get("availability")
+            if not isinstance(availability, str) or is_unavailable(availability):
+                availability = "unknown"
+
+        normalized_products.append({
+            "retrieval_status": retrieval_status,
+            "retrieval_notes": (
+                item.get("retrieval_notes")
+                if isinstance(item.get("retrieval_notes"), str)
+                and item.get("retrieval_notes").strip()
+                else (
+                    "Usable product details were retrieved."
+                    if retrieval_status == "verified"
+                    else "Only partial product information was available."
+                    if retrieval_status == "partial"
+                    else "No usable product listing details were retrieved."
+                )
+            ),
+            "variant_match": variant_match,
+            "product_name": name,
+            "brand": brand,
+            "marketplace": submitted["marketplace"],
+            "price": {
+                "amount": amount,
+                "currency": "INR",
+                "status": price_status
+            },
+            "availability": availability,
+            "key_specifications": specs,
+            "strengths": item.get("strengths") if isinstance(item.get("strengths"), list) else [],
+            "tradeoffs": item.get("tradeoffs") if isinstance(item.get("tradeoffs"), list) else [],
+            "source_url": submitted["url"]
+        })
+
+        if retrieval_status != "verified":
+            limitations.append(
+                f"{submitted['marketplace']} product {index + 1}: "
+                f"{retrieval_status} retrieval. {normalized_products[-1]['retrieval_notes']}"
+            )
+        if variant_match is False:
+            limitations.append(
+                f"{submitted['marketplace']} product {index + 1}: "
+                "The retrieved product variant does not match the submitted URL."
+            )
+
+    comparison["products"] = normalized_products
+    comparison.setdefault("summary", "Comparison generated with the available product information.")
+    comparison.setdefault("comparison", {})
+    if not isinstance(comparison["comparison"], dict):
+        comparison["comparison"] = {}
+    comparison.setdefault("recommendations", {})
+    if not isinstance(comparison["recommendations"], dict):
+        comparison["recommendations"] = {}
+
+    comparable = [
+        product for product in normalized_products
+        if product["retrieval_status"] in ("verified", "partial")
+        and not is_unavailable(product["product_name"])
+        and len(product["key_specifications"]) >= 2
+    ]
+
+    if len(comparable) < 2:
+        comparison["comparison"]["price_difference"] = "Unavailable due to insufficient comparable product data."
+        comparison["comparison"]["feature_comparison"] = []
+        comparison["comparison"]["brand_assessment"] = "Unavailable due to insufficient comparable product data."
+        comparison["recommendations"] = {
+            "best_overall": "insufficient data",
+            "best_value": "insufficient data",
+            "best_features": "insufficient data",
+            "reason": "At least two products need usable, comparable retrieved information before recommendations can be made.",
+            "caveat": "One or more product pages returned incomplete, blocked, or non-listing content."
+        }
+
+    comparison["data_limitations"] = list(dict.fromkeys(
+        item for item in limitations if isinstance(item, str)
+    ))
+    return comparison
+
+
 def call_gemini(product_data):
     api_key = get_gemini_api_key()
 
@@ -151,8 +350,15 @@ For each product, extract only information supported by the retrieved page:
 
 Then compare the products.
 
+For each product, assess retrieval quality using the actual retrieved page content, not merely the URL slug or product title supplied in the URL. A page containing scripts, JavaScript bundles, JSON hydration state, navigation, cookie text, or technical payloads is NOT successful product retrieval.
+
 Important rules:
 1. Never invent product specifications, prices, ratings or availability.
+1a. Do not treat a product name or brand inferred only from the URL as evidence that the page was retrieved.
+1b. Ignore script headers, JavaScript, HTML boilerplate, tracking parameters, search results, and technical payloads. Never put these into key_specifications.
+1c. Set variant_match to true only when the retrieved page clearly supports the exact model and variant; false when a mismatch is visible; null when it cannot be checked.
+1d. Set retrieval_status to "verified" only when the page provides the product identity and at least two meaningful product facts; use "partial" when some genuine product information is available but incomplete; use "failed" when no usable product listing information was retrieved.
+1e. Add a short retrieval_notes explanation for each product. A failed product must have unavailable identity/brand, no specifications, no price, and unknown availability unless those facts are genuinely present in the page content.
 2. Do not assume a page was retrieved successfully.
 3. If information is unavailable, return null or an empty list and explain why.
 4. Distinguish verified page information from your own analysis.
@@ -173,6 +379,9 @@ Return valid JSON only, using this structure:
   "summary": "Overall comparison summary",
   "products": [
     {{
+      "retrieval_status": "verified, partial, or failed",
+      "retrieval_notes": "Short explanation of retrieval quality",
+      "variant_match": true,
       "product_name": "Product name or unavailable",
       "brand": "Brand or unavailable",
       "marketplace": "Amazon or Flipkart",
@@ -288,6 +497,11 @@ Return valid JSON only, using this structure:
 
         if not all(field in comparison for field in required_fields):
             raise RuntimeError("Gemini response is missing required fields.")
+
+        comparison = normalize_comparison(
+            comparison,
+            product_data["products"]
+        )
 
         return {
             "model": GEMINI_MODEL,

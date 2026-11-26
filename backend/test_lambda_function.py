@@ -218,19 +218,21 @@ class LambdaHandlerTests(unittest.TestCase):
                 {
                     "product_name": "Phone A",
                     "brand": "Brand A",
+                    "identity_evidence": "Brand A Phone A product listing",
                     "variant_match": True,
                     "key_specifications": [
-                        {"name": "Storage", "value": "256 GB"},
-                        {"name": "Display", "value": "6.7 inch"}
+                        {"name": "Storage", "value": "256 GB", "evidence": "Storage capacity 256 GB"},
+                        {"name": "Display", "value": "6.7 inch", "evidence": "Display size 6.7 inch"}
                     ]
                 },
                 {
                     "product_name": "Phone B",
                     "brand": "Brand B",
+                    "identity_evidence": "Brand B Phone B product listing",
                     "variant_match": True,
                     "key_specifications": [
-                        {"name": "Storage", "value": "128 GB"},
-                        {"name": "Display", "value": "6.5 inch"}
+                        {"name": "Storage", "value": "128 GB", "evidence": "Storage capacity 128 GB"},
+                        {"name": "Display", "value": "6.5 inch", "evidence": "Display size 6.5 inch"}
                     ]
                 }
             ],
@@ -254,10 +256,11 @@ class LambdaHandlerTests(unittest.TestCase):
                 {
                     "product_name": "Phone A",
                     "brand": "Brand A",
+                    "identity_evidence": "Brand A Phone A product listing",
                     "variant_match": True,
                     "key_specifications": [
-                        {"name": "Storage", "value": "256 GB"},
-                        {"name": "Display", "value": "6.7 inch"}
+                        {"name": "Storage", "value": "256 GB", "evidence": "Storage capacity 256 GB"},
+                        {"name": "Display", "value": "6.7 inch", "evidence": "Display size 6.7 inch"}
                     ]
                 },
                 {
@@ -286,6 +289,60 @@ class LambdaHandlerTests(unittest.TestCase):
         self.assertEqual(result["recommendations"]["best_overall"], "insufficient data")
         self.assertEqual(result["comparison"]["feature_comparison"], [])
 
+    def test_unsubstantiated_specs_and_prices_are_removed(self):
+        comparison = {
+            "products": [{
+                "product_name": "Phone X",
+                "brand": "Brand X",
+                "identity_evidence": "Brand X Phone X product listing",
+                "variant_match": True,
+                "price": {"amount": 49999, "status": "verified"},
+                "key_specifications": [
+                    {"name": "RAM", "value": "16 GB"},
+                    {"name": "Storage", "value": "1 TB", "evidence": "Storage capacity 1 TB"}
+                ]
+            }],
+            "comparison": {},
+            "recommendations": {},
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/x/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+        result = normalize_comparison(comparison, submitted)
+        product = result["products"][0]
+        self.assertEqual(len(product["key_specifications"]), 1)
+        self.assertEqual(product["key_specifications"][0]["name"], "Storage")
+        self.assertIsNone(product["price"]["amount"])
+        self.assertEqual(product["price"]["status"], "not_found")
+        self.assertEqual(product["retrieval_status"], "partial")
+
+    def test_price_requires_page_evidence(self):
+        comparison = {
+            "products": [{
+                "product_name": "Phone X",
+                "brand": "Brand X",
+                "identity_evidence": "Brand X Phone X product listing",
+                "variant_match": True,
+                "price": {
+                    "amount": 49999,
+                    "status": "verified",
+                    "evidence": "Special price Rs. 49,999"
+                },
+                "key_specifications": []
+            }],
+            "comparison": {},
+            "recommendations": {},
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/x/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+        result = normalize_comparison(comparison, submitted)
+        self.assertEqual(result["products"][0]["price"]["amount"], 49999)
+        self.assertEqual(result["products"][0]["price"]["evidence"], "Special price Rs. 49,999")
 
 
 if __name__ == "__main__":

@@ -271,7 +271,7 @@ Do not include Markdown or text outside the JSON object.
     )
 
     # One API attempt only. No automatic retries or paid fallback.
-    with urllib.request.urlopen(request, timeout=20) as result:
+    with urllib.request.urlopen(request, timeout=60) as result:
         response_data = json.loads(
             result.read().decode("utf-8")
         )

@@ -133,6 +133,13 @@ TECHNICAL_CONTENT_MARKERS = (
     "chunkloaderror",
     "hydration",
     "polyfill",
+    "new relic",
+    "monitoring payload",
+    "technical payload",
+    "script boilerplate",
+    "javascript bundle",
+    "page could not be browsed",
+    "could not be retrieved",
 )
 
 
@@ -170,14 +177,27 @@ def normalize_comparison(comparison, submitted_products):
     for index, submitted in enumerate(submitted_products):
         item = products[index] if index < len(products) and isinstance(products[index], dict) else {}
 
+        retrieval_notes = item.get("retrieval_notes") if isinstance(item.get("retrieval_notes"), str) else ""
+        model_retrieval_status = item.get("retrieval_status")
+        notes_lower = retrieval_notes.lower()
+        retrieval_failed_by_notes = any(marker in notes_lower for marker in (
+            "script", "javascript", "technical payload", "monitoring payload",
+            "new relic", "boilerplate", "could not be browsed",
+            "could not be retrieved", "failed to load", "failed retrieval"
+        ))
+        force_failed = model_retrieval_status == "failed" or retrieval_failed_by_notes
+
         name = item.get("product_name")
         brand = item.get("brand")
+        if force_failed:
+            name = "Unavailable"
+            brand = "Unavailable"
         if is_unavailable(name) or looks_like_technical_payload(name):
             name = "Unavailable"
         if is_unavailable(brand) or looks_like_technical_payload(brand):
             brand = "Unavailable"
 
-        raw_specs = item.get("key_specifications")
+        raw_specs = [] if force_failed else item.get("key_specifications")
         if not isinstance(raw_specs, list):
             raw_specs = []
 
@@ -201,7 +221,7 @@ def normalize_comparison(comparison, submitted_products):
             })
         specs = specs[:12]
 
-        price = item.get("price")
+        price = {} if force_failed else item.get("price")
         if not isinstance(price, dict):
             price = {}
         amount = price.get("amount")
@@ -224,7 +244,9 @@ def normalize_comparison(comparison, submitted_products):
         has_identity = not is_unavailable(name)
         has_supporting_details = bool(specs) or not is_unavailable(brand) or amount is not None
 
-        if has_identity and not looks_like_technical_payload(name) and len(specs) >= 2 and variant_match is True:
+        if force_failed:
+            retrieval_status = "failed"
+        elif has_identity and not looks_like_technical_payload(name) and len(specs) >= 2 and variant_match is True:
             retrieval_status = "verified"
         elif has_identity or has_supporting_details:
             retrieval_status = "partial"
@@ -246,9 +268,8 @@ def normalize_comparison(comparison, submitted_products):
         normalized_products.append({
             "retrieval_status": retrieval_status,
             "retrieval_notes": (
-                item.get("retrieval_notes")
-                if isinstance(item.get("retrieval_notes"), str)
-                and item.get("retrieval_notes").strip()
+                retrieval_notes
+                if retrieval_notes.strip()
                 else (
                     "Usable product details were retrieved."
                     if retrieval_status == "verified"

@@ -203,17 +203,30 @@ function renderResults(data) {
     card.className = "result-section";
     addTextElement(card, "h3", product.product_name || "Product details unavailable");
     addTextElement(card, "p", (product.brand || "Brand unavailable") + " · " + (product.marketplace || "Marketplace unknown"));
+    const retrieval = product.retrieval_status || "unknown";
+    addTextElement(card, "p", "Retrieval status: " + retrieval + " · Variant match: " + (product.variant_match === true ? "yes" : product.variant_match === false ? "no" : "unknown"), "muted");
+    if (product.identity_evidence) {
+      addTextElement(card, "p", "AI-reported identity evidence: “" + product.identity_evidence + "”", "muted");
+    }
     const price = product.price || {};
     addTextElement(card, "div",
       price.amount == null ? "Price not available" :
       (price.currency === "INR" ? "₹" : price.currency + " ") + Number(price.amount).toLocaleString("en-IN"),
       "price");
     addTextElement(card, "p", "Price status: " + (price.status || "unknown") + " · Availability: " + (product.availability || "unknown"));
+    if (price.evidence) {
+      addTextElement(card, "p", "AI-reported price evidence: “" + price.evidence + "”", "muted");
+    }
     const specs = product.key_specifications || [];
     if (specs.length) {
       addTextElement(card, "h4", "Key specifications");
       const ul = document.createElement("ul");
-      specs.forEach(spec => addTextElement(ul, "li", (spec.name || "Specification") + ": " + (spec.value || "Not available")));
+      specs.forEach(spec => {
+        const li = document.createElement("li");
+        li.textContent = (spec.name || "Specification") + ": " + (spec.value || "Not available");
+        if (spec.evidence) li.textContent += " — Page excerpt (AI-reported): “" + spec.evidence + "”";
+        ul.appendChild(li);
+      });
       card.appendChild(ul);
     }
     addList(card, "Strengths", product.strengths);

@@ -19,12 +19,9 @@ VALID_PRIORITIES = {
     "reliability"
 }
 
-GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 
-GEMINI_ENDPOINT = (
-    "https://generativelanguage.googleapis.com/v1beta/"
-    f"models/{GEMINI_MODEL}:generateContent"
-)
+GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
 
 GEMINI_PARAMETER_NAME = (
     "/smart-product-compare/google-api-key"

@@ -102,7 +102,7 @@ class LambdaHandlerTests(unittest.TestCase):
         self.assertEqual(result["statusCode"], 400)
 
 
-    def test_public_function_url_cannot_call_ai_summary(self):
+    def test_public_function_url_ai_summary_is_no_longer_blocked(self):
         event = {
             "action": "ai_summary",
             "requestContext": {
@@ -114,7 +114,36 @@ class LambdaHandlerTests(unittest.TestCase):
 
         result = lambda_handler(event, None)
 
-        self.assertEqual(result["statusCode"], 403)
+        # Missing category/productUrls should fail validation, not public-access blocking.
+        self.assertEqual(result["statusCode"], 400)
+        self.assertEqual(json.loads(result["body"])["status"], "validation_error")
+
+    def test_rejects_oversized_public_request_body(self):
+        event = {
+            "body": "x" * 8193,
+            "requestContext": {
+                "http": {
+                    "method": "POST"
+                }
+            }
+        }
+
+        result = lambda_handler(event, None)
+
+        self.assertEqual(result["statusCode"], 413)
+
+    def test_rejects_non_post_public_method(self):
+        event = {
+            "requestContext": {
+                "http": {
+                    "method": "GET"
+                }
+            }
+        }
+
+        result = lambda_handler(event, None)
+
+        self.assertEqual(result["statusCode"], 405)
 
 
 if __name__ == "__main__":

@@ -170,6 +170,48 @@ class LambdaHandlerTests(unittest.TestCase):
         self.assertEqual(result["products"][0]["price"]["amount"], None)
         self.assertEqual(result["recommendations"]["best_overall"], "insufficient data")
 
+    def test_technical_payload_notes_override_ai_inferred_product_details(self):
+        comparison = {
+            "products": [
+                {
+                    "retrieval_status": "partial",
+                    "retrieval_notes": "Page content consists of JavaScript bundles and New Relic monitoring payloads, not product listing information.",
+                    "product_name": "Google Pixel 11 (256 GB Storage, 12 GB RAM)",
+                    "brand": "Google",
+                    "variant_match": True,
+                    "price": {"amount": 79999, "status": "verified"},
+                    "key_specifications": [
+                        {"name": "Storage", "value": "256 GB"},
+                        {"name": "RAM", "value": "12 GB"}
+                    ]
+                },
+                {
+                    "retrieval_status": "failed",
+                    "retrieval_notes": "The URL could not be browsed.",
+                    "product_name": "Motorola G37 Power",
+                    "brand": "Motorola",
+                    "key_specifications": []
+                }
+            ],
+            "comparison": {},
+            "recommendations": {},
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/pixel/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.flipkart.com/motorola/p/itm456", "marketplace": "Flipkart"}
+        ]
+
+        result = normalize_comparison(comparison, submitted)
+
+        first = result["products"][0]
+        self.assertEqual(first["retrieval_status"], "failed")
+        self.assertEqual(first["product_name"], "Unavailable")
+        self.assertEqual(first["brand"], "Unavailable")
+        self.assertEqual(first["key_specifications"], [])
+        self.assertIsNone(first["price"]["amount"])
+        self.assertEqual(result["recommendations"]["best_overall"], "insufficient data")
+
     def test_two_products_with_supported_specs_can_be_verified(self):
         comparison = {
             "products": [

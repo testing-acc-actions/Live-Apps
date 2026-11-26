@@ -81,5 +81,41 @@ class LambdaHandlerTests(unittest.TestCase):
 
         self.assertEqual(result["statusCode"], 400)
 
+
+    def test_ai_summary_rejects_incomplete_product_list(self):
+        event = {
+            "action": "ai_summary",
+            "category": "smartphones",
+            "budget": 90000,
+            "priority": "lowest_price",
+            "products": [
+                {
+                    "name": "Sample Phone A",
+                    "price": 45000,
+                    "features": {}
+                }
+            ]
+        }
+
+        result = lambda_handler(event, None)
+
+        self.assertEqual(result["statusCode"], 400)
+
+
+    def test_public_function_url_cannot_call_ai_summary(self):
+        event = {
+            "action": "ai_summary",
+            "requestContext": {
+                "http": {
+                    "method": "POST"
+                }
+            }
+        }
+
+        result = lambda_handler(event, None)
+
+        self.assertEqual(result["statusCode"], 403)
+
+
 if __name__ == "__main__":
     unittest.main()

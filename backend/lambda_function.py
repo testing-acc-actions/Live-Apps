@@ -348,14 +348,26 @@ def handle_ai_summary(event):
             "result": analysis
         })
 
+    
     except urllib.error.HTTPError as error:
 
         if error.code == 429:
+            print("Gemini rate limit or quota reached.")
+
             return response(503, {
                 "error": "Gemini free-tier quota or rate limit reached. Try later."
             })
 
+        if error.code == 503:
+            print("Gemini service temporarily unavailable.")
+
+            return response(503, {
+                "error": "Gemini is temporarily unavailable. Please try again later."
+            })
+
         if error.code in (401, 403):
+            print("Gemini authentication or project access error:", error.code)
+
             return response(502, {
                 "error": "Gemini API rejected the key or project access."
             })
@@ -366,17 +378,30 @@ def handle_ai_summary(event):
             "error": "Gemini API request failed."
         })
 
+    except TimeoutError:
+        print("Gemini request timed out.")
+
+        return response(504, {
+            "error": "Gemini took too long to respond. Please try again."
+        })
+
     except urllib.error.URLError:
+        print("Unable to connect to Gemini API.")
+
         return response(503, {
             "error": "Unable to connect to Gemini API."
         })
 
     except GeminiCredentialError:
+        print("Gemini credentials could not be retrieved.")
+
         return response(503, {
             "error": "Gemini credentials could not be retrieved."
         })
 
     except GeminiResponseError:
+        print("Gemini returned an invalid response.")
+
         return response(502, {
             "error": "Gemini returned an invalid response."
         })

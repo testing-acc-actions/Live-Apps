@@ -362,6 +362,13 @@ def handle_ai_summary(event):
                 "message": message
             })
 
+        if "temporarily unavailable" in message.lower():
+            return response(503, {
+                "status": "service_unavailable",
+                "message": message,
+                "retryable": True
+            })
+
         if "timed out" in message.lower():
             return response(504, {
                 "status": "timeout",

@@ -21,6 +21,7 @@ GEMINI_PARAMETER_NAME = (
 )
 
 GEMINI_API_KEY_CACHE = None
+MAX_REQUEST_BODY_BYTES = 8192
 
 
 def response(status_code, data):
@@ -392,6 +393,23 @@ def handle_ai_summary(event):
 def lambda_handler(event, context):
     request_context = event.get("requestContext")
 
+    # Basic safeguards for the temporary public demo endpoint.
+    if isinstance(request_context, dict):
+        http_context = request_context.get("http", {})
+        method = http_context.get("method")
+        if method and method != "POST":
+            return response(405, {
+                "status": "method_not_allowed",
+                "message": "Only POST requests are supported."
+            })
+
+    raw_body = event.get("body")
+    if isinstance(raw_body, str) and len(raw_body.encode("utf-8")) > MAX_REQUEST_BODY_BYTES:
+        return response(413, {
+            "status": "request_too_large",
+            "message": "Request body exceeds the 8 KB limit."
+        })
+
     body = event
 
     if isinstance(event.get("body"), str):
@@ -413,14 +431,8 @@ def lambda_handler(event, context):
         })
 
     if body.get("action") == "ai_summary":
-
-        # Keep public AI access blocked until abuse protection is added.
-        if request_context:
-            return response(403, {
-                "status": "forbidden",
-                "message": "Public AI comparison is not enabled yet."
-            })
-
+        # Public demo access is temporarily enabled.
+        # This endpoint has no per-user rate limit yet; monitor Gemini usage.
         return handle_ai_summary(body)
 
     # Retain the previous URL-validation action for compatibility.

@@ -161,6 +161,10 @@ Important rules:
 8. Use INR when the page provides Indian rupee pricing.
 9. Do not invent brand reputation or brand quality claims.
 10. Recommendations must be based on available evidence.
+11. Verify that each retrieved page matches the exact product and variant in the submitted URL. If the colour, storage, model, or variant differs, flag it clearly.
+12. Do not declare a best overall, best value, or best features winner unless at least two products have successfully retrieved and comparable information.
+13. If only one product is retrieved, provide its individual analysis but set all comparison recommendations to "insufficient data".
+14. Never describe a price as verified if the retrieved page does not clearly show that price.
 
 Return valid JSON only, using this structure:
 

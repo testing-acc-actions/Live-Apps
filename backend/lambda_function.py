@@ -1083,7 +1083,10 @@ def handle_ai_summary(event):
         return response(200, {
             "status": "comparison_generated",
             "model": metadata.get("model", GEMINI_MODEL),
-            "dataRetrieved": True,
+            "dataRetrieved": any(
+                p["retrieval_status"] in ("verified", "partial")
+                    for p in normalized["products"]
+        ),
             "metadata": metadata,
             "category": data["category"],
             "budget": data["budget"],

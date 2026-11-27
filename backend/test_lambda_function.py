@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from lambda_function import lambda_handler, normalize_comparison
+from lambda_function import build_gemini_prompt, lambda_handler, normalize_comparison
 
 
 def make_event(product_urls, priority="value_for_money", budget=30000):
@@ -14,6 +14,20 @@ def make_event(product_urls, priority="value_for_money", budget=30000):
 
 
 class LambdaHandlerTests(unittest.TestCase):
+
+    def test_gemini_prompt_preserves_json_example_braces(self):
+        prompt = build_gemini_prompt({
+            "category": "smartphones",
+            "budget": 70000,
+            "priority": "value_for_money",
+            "products": []
+        })
+
+        self.assertIn('[{"text":"Short claim","evidence":"Exact page text"}]', prompt)
+        self.assertIn('"text": "Evidence-backed strength"', prompt)
+        self.assertIn('"text": "Evidence-backed tradeoff"', prompt)
+
+
 
     def test_accepts_amazon_and_flipkart_urls(self):
         event = make_event([

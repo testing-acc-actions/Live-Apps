@@ -345,5 +345,66 @@ class LambdaHandlerTests(unittest.TestCase):
         self.assertEqual(result["products"][0]["price"]["evidence"], "Special price Rs. 49,999")
 
 
+
+    def test_price_is_recovered_when_amount_is_null_but_page_quote_is_valid(self):
+        comparison = {
+            "products": [{
+                "product_name": "Phone X",
+                "brand": "Brand X",
+                "identity_evidence": "Brand X Phone X product listing",
+                "variant_match": True,
+                "price": {
+                    "amount": None,
+                    "status": "not_found",
+                    "evidence": "Special price ₹89,999"
+                },
+                "key_specifications": []
+            }],
+            "comparison": {},
+            "recommendations": {},
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/x/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted, budget=70000)
+        product = result["products"][0]
+
+        self.assertEqual(product["price"]["amount"], 89999)
+        self.assertEqual(product["price"]["status"], "verified")
+        self.assertEqual(product["budget_status"], "over_budget")
+
+    def test_price_is_rejected_when_amount_conflicts_with_page_quote(self):
+        comparison = {
+            "products": [{
+                "product_name": "Phone X",
+                "brand": "Brand X",
+                "identity_evidence": "Brand X Phone X product listing",
+                "variant_match": True,
+                "price": {
+                    "amount": 49999,
+                    "status": "verified",
+                    "evidence": "Special price ₹89,999"
+                },
+                "key_specifications": []
+            }],
+            "comparison": {},
+            "recommendations": {},
+            "data_limitations": []
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/x/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted)
+        product = result["products"][0]
+
+        self.assertIsNone(product["price"]["amount"])
+        self.assertEqual(product["price"]["status"], "not_found")
+
+
 if __name__ == "__main__":
     unittest.main()

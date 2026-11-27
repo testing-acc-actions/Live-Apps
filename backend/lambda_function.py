@@ -77,13 +77,13 @@ TECHNICAL_CONTENT_MARKERS = [
 # ============================================================
 
 def response(status_code, payload):
+    # CORS is configured on the Lambda Function URL itself.
+    # Do not add CORS headers here: Function URL also adds them, and
+    # duplicate Access-Control-Allow-Origin headers cause browser CORS failures.
     return {
         "statusCode": status_code,
         "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Methods": "POST,OPTIONS",
+            "Content-Type": "application/json"
         },
         "body": json.dumps(payload, ensure_ascii=False)
     }

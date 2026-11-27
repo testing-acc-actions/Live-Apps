@@ -1049,7 +1049,7 @@ EVIDENCE RULES:
     payloads, or unrelated technical content, mark it failed.
 
 19. Return strengths and tradeoffs only as evidence-backed objects:
-    [{"text":"Short claim","evidence":"Exact page text"}].
+    [{{"text":"Short claim","evidence":"Exact page text"}}].
     Use empty arrays when evidence is unavailable.
 
 Return ONLY valid JSON, without Markdown fences.
@@ -1090,16 +1090,16 @@ Use this structure:
       }},
       "availability": "Available, unavailable, or Unknown",
       "strengths": [
-        {
+        {{
           "text": "Evidence-backed strength",
           "evidence": "Exact supporting page text"
-        }
+        }}
       ],
       "tradeoffs": [
-        {
+        {{
           "text": "Evidence-backed tradeoff",
           "evidence": "Exact supporting page text"
-        }
+        }}
       ]
     }}
   ],

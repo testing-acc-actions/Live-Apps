@@ -209,7 +209,7 @@ function addList(parent, heading, items) {
 }
 
 function renderResults(data) {
-  const result = data.result || {};
+  const result = data.result || data;
   const summarySection = document.getElementById("summary").closest(".result-section");
   if (typeof result.summary === "string" && result.summary.trim()) {
     document.getElementById("summary").textContent = result.summary;
@@ -266,8 +266,19 @@ function renderResults(data) {
   const comparison = document.getElementById("comparison");
   comparison.replaceChildren();
   const comp = result.comparison || {};
-  addTextElement(comparison, "p", "Price difference: " + (comp.price_difference || "Not available"));
-  addTextElement(comparison, "p", "Brand assessment: " + (comp.brand_assessment || "Not available"));
+  const priceComparison = comp.price_comparison || {};
+  const difference = priceComparison.price_difference;
+  addTextElement(
+    comparison,
+    "p",
+    "Price difference: " + (difference == null ? "Not available" : "₹" + Number(difference).toLocaleString("en-IN"))
+  );
+  if (priceComparison.lowest_price && priceComparison.lowest_price !== "insufficient data") {
+    addTextElement(comparison, "p", "Lowest verified price: " + priceComparison.lowest_price);
+  }
+  if (priceComparison.highest_price && priceComparison.highest_price !== "insufficient data") {
+    addTextElement(comparison, "p", "Highest verified price: " + priceComparison.highest_price);
+  }
   if (Array.isArray(comp.feature_comparison) && comp.feature_comparison.length) {
     addTextElement(comparison, "h4", "Feature comparison");
     const ul = document.createElement("ul");
@@ -338,7 +349,8 @@ form.addEventListener("submit", async event => {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({action: "ai_summary", category, budget, priority, productUrls})
+      body: JSON.stringify({action: "ai_summary", category, budget, priority, productUrls}),
+      signal: AbortSignal.timeout(100000)
     });
 
     const responseText = await response.text();

@@ -7,7 +7,10 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
-import boto3
+try:
+    import boto3
+except ImportError:
+    boto3 = None
 
 
 # ============================================================
@@ -176,6 +179,11 @@ def validate_priority(priority):
 # ============================================================
 
 def get_gemini_api_key():
+    if boto3 is None:
+        raise RuntimeError(
+            "boto3 is required to retrieve the Gemini API key from SSM."
+        )
+
     parameter_store = boto3.client(
         "ssm",
         region_name=SSM_REGION

@@ -1280,48 +1280,28 @@ def needs_search_fallback(comparison):
 
 
 def call_gemini(data):
+    """
+    Make exactly one Gemini request per user comparison.
+    Do not automatically invoke Google Search fallback: a second paid
+    request increases latency, cost, and the chance of rate limiting.
+    """
     api_key = get_gemini_api_key()
-
-    first_comparison = call_gemini_once(
-        data,
-        api_key,
-        use_search=False
-    )
+    comparison = call_gemini_once(data, api_key, use_search=False)
 
     metadata = {
         "model": GEMINI_MODEL,
         "urlContextUsed": True,
-        "googleSearchFallbackUsed": False
+        "googleSearchFallbackUsed": False,
+        "fallbackSkipped": True
     }
 
-    if not needs_search_fallback(first_comparison):
-        return first_comparison, metadata
-
-    try:
-        fallback_comparison = call_gemini_once(
-            data,
-            api_key,
-            use_search=True
-        )
-
-        fallback_products = fallback_comparison.get("products", [])
-        original_products = first_comparison.get("products", [])
-
-        if (
-            isinstance(fallback_products, list)
-            and len(fallback_products) >= len(original_products)
-        ):
-            metadata["googleSearchFallbackUsed"] = True
-            return fallback_comparison, metadata
-
+    if needs_search_fallback(comparison):
         metadata["fallbackNote"] = (
-            "Search fallback did not improve the retrieved result."
+            "Search fallback was skipped to avoid duplicate API usage. "
+            "The result contains only information retrieved from URL Context."
         )
 
-    except Exception as error:
-        metadata["fallbackError"] = str(error)[:500]
-
-    return first_comparison, metadata
+    return comparison, metadata
 
 
 # ============================================================

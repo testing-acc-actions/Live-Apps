@@ -1370,9 +1370,23 @@ def handle_ai_summary(event):
         except Exception:
             pass
 
-        return response(502, {
+        # Surface upstream throttling/outages distinctly. Do not retry
+        # automatically: retries can amplify Gemini usage and rate limits.
+        upstream_status = getattr(error, "code", None)
+        if upstream_status == 429:
+            status_code = 503
+            message = "Gemini is temporarily rate-limiting requests. Please wait before trying again."
+        elif isinstance(upstream_status, int) and upstream_status >= 500:
+            status_code = 503
+            message = "Gemini is temporarily unavailable. Please try again later."
+        else:
+            status_code = 502
+            message = "Gemini rejected the comparison request."
+
+        return response(status_code, {
             "status": "gemini_api_error",
-            "message": "The Gemini API request failed.",
+            "message": message,
+            "upstreamStatus": upstream_status,
             "details": error_body or str(error)
         })
 

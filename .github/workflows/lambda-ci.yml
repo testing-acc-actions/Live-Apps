@@ -6,10 +6,12 @@ on:
     branches:
       - main
       - "feature/**"
+      - "fix/**"
 
   pull_request:
     branches:
       - main
+      - lambda-url-validation
   workflow_dispatch:
 
 permissions:

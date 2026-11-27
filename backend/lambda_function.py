@@ -251,36 +251,56 @@ def evidence_is_usable(evidence):
     return True
 
 
-def price_evidence_is_valid(amount, evidence):
-    if amount is None or not evidence_is_usable(evidence):
-        return False
+def extract_price_amount(amount, evidence):
+    """
+    Return a price only when the evidence itself contains an INR currency
+    marker and the matching numeric amount. Recover amount from the quote
+    when Gemini omits it, but never infer it from summaries or limitations.
+    """
+    if not evidence_is_usable(evidence):
+        return None
 
-    try:
-        numeric_amount = int(float(amount))
-    except (TypeError, ValueError):
-        return False
+    currency_pattern = r"(?:₹|Rs\.?|INR)"
+    number_pattern = r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)"
 
-    if numeric_amount <= 0:
-        return False
-
-    normalized = evidence.replace(",", "")
-    normalized = normalized.replace(" ", "")
-
-    amount_pattern = rf"(?<!\d){numeric_amount}(?!\d)"
-
-    has_amount = re.search(
-        amount_pattern,
-        normalized
-    ) is not None
-
-    has_currency = re.search(
-        r"₹|Rs\.?|INR",
+    match = re.search(
+        currency_pattern + r"\s*" + number_pattern
+        + r"|" + number_pattern + r"\s*" + currency_pattern,
         evidence,
         re.IGNORECASE
-    ) is not None
+    )
 
-    return has_amount and has_currency
+    if not match:
+        return None
 
+    quoted_number = match.group(1) or match.group(2)
+    if not quoted_number:
+        return None
+
+    try:
+        evidence_amount = int(float(quoted_number.replace(",", "")))
+    except (TypeError, ValueError):
+        return None
+
+    if evidence_amount <= 0:
+        return None
+
+    if amount is not None:
+        try:
+            supplied_amount = int(float(
+                str(amount).replace(",", "").replace("₹", "").strip()
+            ))
+        except (TypeError, ValueError):
+            supplied_amount = None
+
+        if supplied_amount is not None and supplied_amount != evidence_amount:
+            return None
+
+    return evidence_amount
+
+
+def price_evidence_is_valid(amount, evidence):
+    return extract_price_amount(amount, evidence) is not None
 
 def safe_text(value, default="Unavailable"):
     if is_unavailable(value):
@@ -597,15 +617,14 @@ def normalize_comparison(comparison, submitted_products, budget=None):
         price_amount = raw_price.get("amount")
         price_evidence = raw_price.get("evidence")
 
-        valid_price = price_evidence_is_valid(
+        # The quoted page evidence is authoritative. Recover the number
+        # from it when Gemini returns amount=null, but never infer a price
+        # from summaries, feature rows, or free-form limitations.
+        price_amount = extract_price_amount(
             price_amount,
             price_evidence
         )
-
-        if valid_price:
-            price_amount = int(float(price_amount))
-        else:
-            price_amount = None
+        valid_price = price_amount is not None
 
         if price_amount is None:
             budget_status = "unknown"
@@ -935,10 +954,17 @@ EVIDENCE RULES:
 
 4. Omit specifications without evidence.
 
-5. A price must have a numeric INR amount and evidence containing
-   the corresponding amount and currency.
+5. For each price, copy a short, exact quote from the product page
+   into price.evidence. The quote MUST contain both the INR currency
+   marker (₹, Rs., or INR) and the complete price digits.
 
-6. If price is unavailable, use amount=null and status="not_found".
+6. Put the price as a JSON number in price.amount (digits only, no
+   commas or currency symbol). Example: amount=89999 and evidence=
+   "Special price ₹89,999". Do not put a price from a search snippet,
+   comparison text, or memory into the price field.
+
+7. If the page does not show a verifiable current price, use
+   amount=null, status="not_found", and evidence=null. Never guess.
 
 7. Identify the requested model and storage and compare them with
    the retrieved product.
@@ -1163,17 +1189,6 @@ def call_gemini_once(data, api_key, use_search=False):
     output_text = re.sub(r"\s*```$", "", output_text)
 
     return parse_gemini_json(output_text)
-
-    parsed = parse_gemini_json(output_text)
-
-    for product in parsed.get("products", []):
-        if isinstance(product, dict):
-            print("Gemini price diagnostic:", json.dumps(
-            product.get("price", {}),
-            ensure_ascii=False
-        ))
-
-    return parsed
 
 # ============================================================
 # GEMINI FALLBACK

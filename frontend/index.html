@@ -76,6 +76,22 @@ footer{text-align:center;color:#94a3b8;font-size:12px;padding:28px}
 <option value="other">Other</option>
 </select>
 
+<label for="budget">Your budget (₹)</label>
+<input id="budget" type="number" min="1" step="1" value="70000" required>
+<p class="help">Enter your total budget per product. You can change this before comparing.</p>
+
+<label for="priority">What matters most?</label>
+<select id="priority" required>
+  <option value="value_for_money" selected>Best value for money</option>
+  <option value="lowest_price">Lowest price</option>
+  <option value="best_features">Best features</option>
+  <option value="performance">Performance</option>
+  <option value="battery">Battery</option>
+  <option value="camera">Camera</option>
+  <option value="display">Display</option>
+  <option value="overall">Overall balance</option>
+</select>
+
 <div class="products-heading">
 <h3>Product links</h3>
 <span class="counter" id="productCount">2 of 5 products</span>
@@ -270,10 +286,20 @@ form.addEventListener("submit", async event => {
   results.hidden = true;
 
   const category = document.getElementById("category").value;
+  const budget = Number(document.getElementById("budget").value);
+  const priority = document.getElementById("priority").value;
   const productUrls = [...products.querySelectorAll('input[name="productUrl"]')].map(input => input.value.trim());
 
   if (!category) {
     setStatus("Please select a product category.", "error");
+    return;
+  }
+  if (!Number.isFinite(budget) || budget <= 0) {
+    setStatus("Enter a valid budget greater than zero.", "error");
+    return;
+  }
+  if (!priority) {
+    setStatus("Please select what matters most.", "error");
     return;
   }
   if (productUrls.length < 2 || productUrls.length > 5) {
@@ -303,10 +329,16 @@ form.addEventListener("submit", async event => {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({action: "ai_summary", category, productUrls})
+      body: JSON.stringify({action: "ai_summary", category, budget, priority, productUrls})
     });
 
-    const data = await response.json();
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("The comparison service returned an unreadable response (HTTP " + response.status + ").");
+    }
     if (!response.ok) {
       if (response.status === 403) {
         setStatus("The backend is currently protected against public AI requests. The website form is ready, but public comparison will be enabled after we add API abuse protection.", "error");
@@ -323,7 +355,8 @@ form.addEventListener("submit", async event => {
     setStatus("Comparison generated. Review the retrieved information and its limitations below.", "success");
     renderResults(data);
   } catch (error) {
-    setStatus("Could not reach the comparison service. Check the API connection and CORS configuration.", "error");
+    const message = error && error.message ? error.message : "The request could not be completed.";
+    setStatus("Comparison request failed: " + message, "error");
   } finally {
     compareButton.disabled = false;
     compareButton.textContent = "Compare products";

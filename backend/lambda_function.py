@@ -1032,6 +1032,63 @@ Use this structure:
 # GEMINI REQUEST
 # ============================================================
 
+
+def parse_gemini_json(output_text):
+    if not isinstance(output_text, str) or not output_text.strip():
+        raise ValueError("Gemini returned an empty response.")
+
+    text = output_text.strip()
+
+    # Remove Markdown code fences, if present.
+    text = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+    text = re.sub(r"\s*```$", "", text)
+
+    # Extract the JSON object if Gemini adds introductory text.
+    start = text.find("{")
+
+    if start == -1:
+        raise ValueError("Gemini response contains no JSON object.")
+
+    text = text[start:]
+
+    # Repair common formatting mistakes.
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    text = re.sub(r":\s*,", ": null,", text)
+    text = re.sub(r":\s*}", ": null}", text)
+
+    try:
+        result, _ = json.JSONDecoder().raw_decode(text)
+
+        if not isinstance(result, dict):
+            raise ValueError("Gemini JSON response is not an object.")
+
+        return result
+
+    except json.JSONDecodeError as error:
+        # Log a small excerpt for diagnosis, never the API key.
+        excerpt = text[
+            max(0, error.pos - 150):
+            min(len(text), error.pos + 150)
+        ]
+
+        print(
+            "Gemini JSON parsing failed:",
+            f"line={error.lineno}",
+            f"column={error.colno}",
+            f"excerpt={excerpt!r}"
+        )
+
+        raise ValueError(
+            f"Gemini returned malformed JSON at "
+            f"line {error.lineno}, column {error.colno}."
+        ) from error
+
+
 def call_gemini_once(data, api_key, use_search=False):
     prompt = build_gemini_prompt(data, use_search)
 
@@ -1105,8 +1162,7 @@ def call_gemini_once(data, api_key, use_search=False):
 
     output_text = re.sub(r"\s*```$", "", output_text)
 
-    return json.loads(output_text)
-
+    return parse_gemini_json(output_text)
 
 # ============================================================
 # GEMINI FALLBACK

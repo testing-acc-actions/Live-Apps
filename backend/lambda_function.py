@@ -1164,6 +1164,17 @@ def call_gemini_once(data, api_key, use_search=False):
 
     return parse_gemini_json(output_text)
 
+    parsed = parse_gemini_json(output_text)
+
+    for product in parsed.get("products", []):
+    if isinstance(product, dict):
+        print("Gemini price diagnostic:", json.dumps(
+            product.get("price", {}),
+            ensure_ascii=False
+        ))
+
+    return parsed
+
 # ============================================================
 # GEMINI FALLBACK
 # ============================================================

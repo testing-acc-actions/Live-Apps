@@ -1,4 +1,5 @@
 
+import base64
 import json
 import os
 import re
@@ -67,7 +68,6 @@ TECHNICAL_CONTENT_MARKERS = [
     "script payload",
     "application/javascript",
     "runtime chunk",
-    "webpack",
     "minified javascript",
 ]
 
@@ -206,9 +206,7 @@ def is_unavailable(value):
         return True
 
     if isinstance(value, str):
-        normalized = value.strip().lower()
-
-        return normalized in {
+        return value.strip().lower() in {
             "",
             "unavailable",
             "not available",
@@ -230,10 +228,10 @@ def looks_like_technical_payload(value):
     if not isinstance(value, str):
         return False
 
-    text = value.lower()
+    value = value.lower()
 
     return any(
-        marker in text
+        marker in value
         for marker in TECHNICAL_CONTENT_MARKERS
     )
 
@@ -308,14 +306,14 @@ def safe_text_list(items):
     for item in items:
         if isinstance(item, str):
             cleaned = safe_text(item, default="")
-
             if cleaned:
                 result.append(cleaned)
 
         elif isinstance(item, dict):
-            text = item.get("text") or item.get("description")
-            cleaned = safe_text(text, default="")
-
+            cleaned = safe_text(
+                item.get("text") or item.get("description"),
+                default=""
+            )
             if cleaned:
                 result.append(cleaned)
 
@@ -330,11 +328,9 @@ def validate_variant(product):
     model_match = product.get("model_match")
     storage_match = product.get("storage_match")
     color_match = product.get("color_match")
-
     legacy_match = product.get("variant_match")
 
-    # Backward compatibility with existing Gemini responses
-    # and existing unit tests.
+    # Compatibility with existing test fixtures and older responses.
     if (
         legacy_match is True
         and model_match is None
@@ -360,42 +356,107 @@ def validate_variant(product):
     return "unknown"
 
 
+def comparison_eligible(product):
+    """
+    A product can participate in a comparison when:
+    - identity is supported;
+    - at least two specifications have evidence;
+    - model and storage match;
+    - colour may be exact or different.
+
+    Legacy exact-match responses remain supported.
+    """
+    if product.get("retrieval_status") not in ("verified", "partial"):
+        return False
+
+    specs = product.get("key_specifications", [])
+
+    if len(specs) < 2:
+        return False
+
+    if product.get("variant_status") == "exact":
+        return True
+
+    return (
+        product.get("model_match") is True
+        and product.get("storage_match") is True
+        and product.get("variant_status") == "partial"
+    )
+
+
 # ============================================================
 # TECHNICAL PAYLOAD DETECTION
 # ============================================================
 
 def product_has_technical_payload(product):
-    notes = product.get("retrieval_notes", "")
-
-    if looks_like_technical_payload(notes):
+    if looks_like_technical_payload(
+        product.get("retrieval_notes", "")
+    ):
         return True
 
-    name = product.get("product_name", "")
-
-    if looks_like_technical_payload(name):
+    if looks_like_technical_payload(
+        product.get("product_name", "")
+    ):
         return True
 
     for spec in product.get("key_specifications", []):
         if not isinstance(spec, dict):
             continue
 
-        if looks_like_technical_payload(spec.get("name", "")):
-            return True
-
-        if looks_like_technical_payload(spec.get("value", "")):
-            return True
-
-        if looks_like_technical_payload(spec.get("evidence", "")):
-            return True
+        for field in ("name", "value", "evidence"):
+            if looks_like_technical_payload(spec.get(field, "")):
+                return True
 
     return False
 
 
 # ============================================================
-# NORMALIZE PRODUCT COMPARISON
+# VARIANT DISPLAY HELPERS
 # ============================================================
 
-def normalize_comparison(comparison, submitted_products):
+def variant_display(value):
+    if isinstance(value, str):
+        return safe_text(value, default="Unknown")
+
+    if isinstance(value, dict):
+        parts = []
+
+        for key in ("color", "colour", "storage", "ram", "model"):
+            item = value.get(key)
+
+            if isinstance(item, str) and not is_unavailable(item):
+                parts.append(f"{key.title()}: {item.strip()}")
+
+        return ", ".join(parts) if parts else "Unknown"
+
+    return "Unknown"
+
+
+def build_variant_warning(variant_status, requested, retrieved):
+    if variant_status == "exact":
+        return "Retrieved variant matches the requested variant."
+
+    if variant_status == "partial":
+        return (
+            "The retrieved product has a different or unconfirmed colour "
+            "variant. Its specifications and price belong to the retrieved "
+            "variant, not necessarily the requested colour."
+        )
+
+    if variant_status == "mismatch":
+        return (
+            "The retrieved model or storage does not match the requested "
+            "product. Do not treat its price as the requested product's price."
+        )
+
+    return "The requested variant could not be fully verified."
+
+
+# ============================================================
+# NORMALIZE COMPARISON
+# ============================================================
+
+def normalize_comparison(comparison, submitted_products, budget=None):
     if not isinstance(comparison, dict):
         comparison = {}
 
@@ -417,8 +478,7 @@ def normalize_comparison(comparison, submitted_products):
         marketplace = submitted.get("marketplace", "Unknown")
         product_url = submitted.get("url", "")
 
-        # Reject technical payloads even if Gemini inferred
-        # a product name, specifications, or price.
+        # Reject script payloads before trusting any AI-inferred details.
         if product_has_technical_payload(product):
             normalized_products.append({
                 "product_name": "Unavailable",
@@ -427,36 +487,39 @@ def normalize_comparison(comparison, submitted_products):
                 "url": product_url,
                 "retrieval_status": "failed",
                 "retrieval_notes": (
-                    "The retrieved page contained technical or "
-                    "script content instead of usable product information."
+                    "The retrieved page contained technical or script "
+                    "content instead of usable product information."
                 ),
                 "variant_match": False,
                 "variant_status": "unknown",
+                "model_match": None,
+                "storage_match": None,
+                "color_match": None,
+                "requested_variant": "Unknown",
+                "retrieved_variant": "Unknown",
+                "variant_warning": "Product variant could not be verified.",
                 "key_specifications": [],
                 "price": {
                     "amount": None,
                     "currency": "INR",
                     "status": "not_found",
-                    "evidence": None
+                    "evidence": None,
+                    "variant": "Unknown",
+                    "budget_status": "unknown"
                 },
+                "budget_status": "unknown",
                 "availability": "Unknown",
                 "strengths": [],
                 "tradeoffs": []
             })
-
             continue
 
-        product_name = safe_text(
-            product.get("product_name")
+        product_name = safe_text(product.get("product_name"))
+        brand = safe_text(product.get("brand"))
+
+        identity_valid = evidence_is_usable(
+            product.get("identity_evidence")
         )
-
-        brand = safe_text(
-            product.get("brand")
-        )
-
-        identity_evidence = product.get("identity_evidence")
-
-        identity_valid = evidence_is_usable(identity_evidence)
 
         variant_status = validate_variant(product)
 
@@ -465,7 +528,6 @@ def normalize_comparison(comparison, submitted_products):
         # ----------------------------------------------------
 
         specifications = []
-
         raw_specs = product.get("key_specifications", [])
 
         if isinstance(raw_specs, list):
@@ -496,6 +558,34 @@ def normalize_comparison(comparison, submitted_products):
                 })
 
         # ----------------------------------------------------
+        # VARIANT DETAILS
+        # ----------------------------------------------------
+
+        requested_variant = variant_display(
+            product.get("requested_variant")
+        )
+
+        retrieved_variant = variant_display(
+            product.get("retrieved_variant")
+        )
+
+        if requested_variant == "Unknown":
+            requested_variant = variant_display(
+                product.get("requested_color")
+            )
+
+        if retrieved_variant == "Unknown":
+            retrieved_variant = variant_display(
+                product.get("retrieved_color")
+            )
+
+        variant_warning = build_variant_warning(
+            variant_status,
+            requested_variant,
+            retrieved_variant
+        )
+
+        # ----------------------------------------------------
         # PRICE
         # ----------------------------------------------------
 
@@ -513,21 +603,30 @@ def normalize_comparison(comparison, submitted_products):
         )
 
         if valid_price:
-            try:
-                price_amount = int(float(price_amount))
-            except (TypeError, ValueError):
-                price_amount = None
-                valid_price = False
+            price_amount = int(float(price_amount))
+        else:
+            price_amount = None
+
+        if price_amount is None:
+            budget_status = "unknown"
+        elif budget is None:
+            budget_status = "unknown"
+        elif price_amount <= budget:
+            budget_status = "within_budget"
+        else:
+            budget_status = "over_budget"
 
         price = {
-            "amount": price_amount if valid_price else None,
+            "amount": price_amount,
             "currency": "INR",
             "status": "verified" if valid_price else "not_found",
             "evidence": (
                 price_evidence.strip()[:500]
                 if valid_price
                 else None
-            )
+            ),
+            "variant": retrieved_variant,
+            "budget_status": budget_status
         }
 
         # ----------------------------------------------------
@@ -559,8 +658,12 @@ def normalize_comparison(comparison, submitted_products):
                 "amount": None,
                 "currency": "INR",
                 "status": "not_found",
-                "evidence": None
+                "evidence": None,
+                "variant": "Unknown",
+                "budget_status": "unknown"
             }
+
+            budget_status = "unknown"
 
         # ----------------------------------------------------
         # AVAILABILITY
@@ -571,12 +674,7 @@ def normalize_comparison(comparison, submitted_products):
             default="Unknown"
         )
 
-        # ----------------------------------------------------
-        # STRENGTHS AND TRADEOFFS
-        # ----------------------------------------------------
-
-        # Do not allow unsupported AI-generated claims to
-        # appear as factual product advantages/disadvantages.
+        # Avoid passing unsupported AI-generated claims to the UI.
         strengths = []
         tradeoffs = []
 
@@ -595,21 +693,25 @@ def normalize_comparison(comparison, submitted_products):
             "model_match": product.get("model_match"),
             "storage_match": product.get("storage_match"),
             "color_match": product.get("color_match"),
+            "requested_variant": requested_variant,
+            "retrieved_variant": retrieved_variant,
+            "variant_warning": variant_warning,
             "key_specifications": specifications,
             "price": price,
+            "budget_status": budget_status,
             "availability": availability,
             "strengths": strengths,
             "tradeoffs": tradeoffs
         })
 
     # ========================================================
-    # COMPARISON AND RECOMMENDATIONS
+    # COMPARISON ELIGIBILITY
     # ========================================================
 
-    verified_products = [
+    eligible_products = [
         product
         for product in normalized_products
-        if product["retrieval_status"] == "verified"
+        if comparison_eligible(product)
     ]
 
     raw_comparison = comparison.get("comparison", {})
@@ -617,7 +719,7 @@ def normalize_comparison(comparison, submitted_products):
     if not isinstance(raw_comparison, dict):
         raw_comparison = {}
 
-    if len(verified_products) < 2:
+    if len(eligible_products) < 2:
         feature_comparison = []
 
         recommendations = {
@@ -625,28 +727,29 @@ def normalize_comparison(comparison, submitted_products):
             "best_value": "insufficient data",
             "best_features": "insufficient data",
             "reason": (
-                "At least two products must have sufficient verified "
+                "At least two products must have sufficient comparable "
                 "information before recommendations can be generated."
             )
         }
 
     else:
-        feature_comparison = raw_comparison.get(
+        raw_features = raw_comparison.get(
             "feature_comparison",
             []
         )
 
-        if not isinstance(feature_comparison, list):
-            feature_comparison = []
+        feature_comparison = (
+            raw_features if isinstance(raw_features, list) else []
+        )
 
-        recommendations = comparison.get("recommendations", {})
+        raw_recommendations = comparison.get("recommendations", {})
 
-        if not isinstance(recommendations, dict):
-            recommendations = {}
+        if not isinstance(raw_recommendations, dict):
+            raw_recommendations = {}
 
         allowed_names = {
             product["product_name"]
-            for product in verified_products
+            for product in eligible_products
         }
 
         def safe_recommendation(value):
@@ -657,13 +760,13 @@ def normalize_comparison(comparison, submitted_products):
 
         recommendations = {
             "best_overall": safe_recommendation(
-                recommendations.get("best_overall")
+                raw_recommendations.get("best_overall")
             ),
             "best_value": safe_recommendation(
-                recommendations.get("best_value")
+                raw_recommendations.get("best_value")
             ),
             "best_features": safe_recommendation(
-                recommendations.get("best_features")
+                raw_recommendations.get("best_features")
             )
         }
 
@@ -673,7 +776,7 @@ def normalize_comparison(comparison, submitted_products):
 
     priced_products = [
         product
-        for product in normalized_products
+        for product in eligible_products
         if product["price"]["amount"] is not None
     ]
 
@@ -703,12 +806,42 @@ def normalize_comparison(comparison, submitted_products):
             )
         }
 
+    # ========================================================
+    # DATA LIMITATIONS
+    # ========================================================
+
     limitations = comparison.get("data_limitations", [])
 
     if not isinstance(limitations, list):
         limitations = []
 
     limitations = safe_text_list(limitations)
+
+    for product in normalized_products:
+        if product["budget_status"] == "over_budget":
+            message = (
+                f'{product["product_name"]} exceeds the budget '
+                f'of ₹{budget:,.0f}.'
+            )
+            if message not in limitations:
+                limitations.append(message)
+
+        if product["variant_status"] == "partial":
+            message = (
+                f'{product["product_name"]}: retrieved variant may differ '
+                "from the requested colour. Its price belongs to the "
+                "retrieved variant."
+            )
+            if message not in limitations:
+                limitations.append(message)
+
+        if product["retrieval_status"] == "failed":
+            message = (
+                f'{product["marketplace"]} product information '
+                "could not be reliably retrieved."
+            )
+            if message not in limitations:
+                limitations.append(message)
 
     return {
         "products": normalized_products,
@@ -731,9 +864,9 @@ def prepare_ai_input(event):
     if not isinstance(category, str) or not category.strip():
         return None, "A product category is required."
 
-    product_urls = event.get("productUrls")
-
-    submitted_products, error = validate_product_urls(product_urls)
+    submitted_products, error = validate_product_urls(
+        event.get("productUrls")
+    )
 
     if error:
         return None, error
@@ -772,87 +905,99 @@ def build_gemini_prompt(data, use_search=False):
 
     if use_search:
         search_instruction = (
-            "\nUse Google Search only as a supplementary source. "
-            "Do not treat search snippets as proof of a current price "
-            "unless the exact price and product variant are clearly "
-            "supported by the source."
+            "Use Google Search only as supplementary research. "
+            "Do not treat snippets as proof of a current price."
         )
 
     return f"""
 You are a careful product research and comparison assistant.
 
-Compare the submitted products using the supplied marketplace URLs.
+Compare these products using the submitted marketplace URLs.
 
 Category: {data["category"]}
-Budget in INR: {data["budget"]}
+User budget: INR {data["budget"]}
 User priority: {data["priority"]}
 
-Submitted products:
+Submitted URLs:
 {products_json}
 
 Use URL Context to inspect the actual product pages.
 {search_instruction}
 
-IMPORTANT EVIDENCE RULES:
+EVIDENCE RULES:
 
 1. Never invent product names, brands, specifications, prices,
-   availability, or product variants.
+   availability, or variants.
 
-2. Every product identity must have identity_evidence copied or
-   summarized from the retrieved product page.
+2. Every product identity needs identity_evidence.
 
-3. Every specification must include its own evidence.
+3. Every specification needs its own evidence from the page.
 
-4. A specification without page evidence must be omitted.
+4. Omit specifications without evidence.
 
-5. Price must be a numeric INR amount only when the retrieved
-   page explicitly supports that amount. Include the price evidence.
+5. A price must have a numeric INR amount and evidence containing
+   the corresponding amount and currency.
 
-6. If price cannot be established, use amount=null,
-   status="not_found", evidence=null.
+6. If price is unavailable, use amount=null and status="not_found".
 
-7. Compare the requested model and storage variant.
-   A different colour may be treated as a partial match only when
-   the model and storage match.
+7. Identify the requested model and storage and compare them with
+   the retrieved product.
 
-8. Never use a different model or storage variant as an exact match.
+8. A different colour is a PARTIAL variant match if model and storage
+   match. Do not reject it solely because the colour differs.
 
-9. Do not infer prices from memory, search snippets, old listings,
-   product launch prices, or AI knowledge.
+9. Clearly return requested_variant and retrieved_variant.
+   Include colour and storage where the page supports them.
 
-10. If a page contains only scripts, JavaScript bundles, monitoring
-    payloads, or unrelated technical content, mark retrieval_status
-    as "failed" and do not infer product details.
+10. A different model or storage is a mismatch. Never use its price
+    as the price of the requested product.
 
-11. A product can be "verified" only when its identity is supported,
-    at least two specifications have evidence, and its requested
-    model/storage/variant match is established.
+11. A product is verified when identity evidence exists, at least
+    two specifications have evidence, and its requested variant
+    is an exact match.
 
-12. A different-colour product with matching model and storage can
-    be "partial". Explain the colour difference in retrieval_notes.
+12. A product with matching model and storage but different colour
+    is partial. Its price belongs to the retrieved colour variant.
 
-13. Do not make recommendations when fewer than two products have
-    sufficient verified information.
+13. Compare eligible products when at least two products have
+    matching model and storage, sufficient evidence, and usable
+    specifications. Partial colour matches may participate, but
+    clearly disclose the colour difference.
 
-14. Do not put unsupported prices in strengths, tradeoffs,
-    comparison text, or recommendations.
+14. Never recommend a failed or mismatched product.
 
-Return ONLY valid JSON. No Markdown fences.
+15. Never put unsupported prices in summaries or recommendations.
 
-Use exactly this structure:
+16. Budget does not determine whether product data is verified.
+    Report over-budget products separately.
+
+17. If a page contains only scripts, JavaScript bundles, monitoring
+    payloads, or unrelated technical content, mark it failed.
+
+Return ONLY valid JSON, without Markdown fences.
+
+Use this structure:
 
 {{
   "products": [
     {{
       "product_name": "Product name",
       "brand": "Brand",
-      "identity_evidence": "Evidence for identity",
+      "identity_evidence": "Evidence from page",
       "retrieval_status": "verified, partial, or failed",
-      "retrieval_notes": "Retrieval details",
+      "retrieval_notes": "Explain retrieval and variant details",
       "model_match": true,
       "storage_match": true,
       "color_match": true,
       "variant_match": true,
+      "requested_variant": {{
+        "color": "Requested colour",
+        "storage": "Requested storage"
+      }},
+      "retrieved_variant": {{
+        "color": "Retrieved colour",
+        "storage": "Retrieved storage"
+      }},
       "key_specifications": [
         {{
           "name": "Specification",
@@ -890,9 +1035,7 @@ Use exactly this structure:
 def call_gemini_once(data, api_key, use_search=False):
     prompt = build_gemini_prompt(data, use_search)
 
-    tools = [
-        {"url_context": {}}
-    ]
+    tools = [{"url_context": {}}]
 
     if use_search:
         tools.append({"google_search": {}})
@@ -901,16 +1044,14 @@ def call_gemini_once(data, api_key, use_search=False):
         "systemInstruction": {
             "parts": [{
                 "text": (
-                    "Return only valid JSON. Use evidence from "
-                    "the supplied product pages. Never invent facts."
+                    "Return only valid JSON. Ground product facts in "
+                    "the supplied pages. Never invent information."
                 )
             }]
         },
         "contents": [{
             "role": "user",
-            "parts": [{
-                "text": prompt
-            }]
+            "parts": [{"text": prompt}]
         }],
         "tools": tools,
         "generationConfig": {
@@ -923,9 +1064,7 @@ def call_gemini_once(data, api_key, use_search=False):
     request = urllib.request.Request(
         f"{GEMINI_ENDPOINT}?key={api_key}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json"
-        },
+        headers={"Content-Type": "application/json"},
         method="POST"
     )
 
@@ -948,18 +1087,15 @@ def call_gemini_once(data, api_key, use_search=False):
         .get("parts", [])
     )
 
-    text_parts = [
+    output_text = "\n".join(
         part.get("text", "")
         for part in parts
         if isinstance(part, dict)
-    ]
-
-    output_text = "\n".join(text_parts).strip()
+    ).strip()
 
     if not output_text:
         raise ValueError("Gemini returned an empty response.")
 
-    # Remove accidental Markdown fences.
     output_text = re.sub(
         r"^```(?:json)?\s*",
         "",
@@ -967,13 +1103,9 @@ def call_gemini_once(data, api_key, use_search=False):
         flags=re.IGNORECASE
     )
 
-    output_text = re.sub(
-        r"\s*```$",
-        "",
-        output_text
-    )
+    output_text = re.sub(r"\s*```$", "", output_text)
 
-    return json.loads(output_text), response_data
+    return json.loads(output_text)
 
 
 # ============================================================
@@ -983,10 +1115,7 @@ def call_gemini_once(data, api_key, use_search=False):
 def needs_search_fallback(comparison):
     products = comparison.get("products", [])
 
-    if not isinstance(products, list):
-        return True
-
-    if len(products) < 2:
+    if not isinstance(products, list) or len(products) < 2:
         return True
 
     for product in products:
@@ -998,15 +1127,9 @@ def needs_search_fallback(comparison):
         ):
             return True
 
-        if not product.get("key_specifications"):
-            return True
+        specs = product.get("key_specifications", [])
 
-        price = product.get("price", {})
-
-        if not isinstance(price, dict):
-            return True
-
-        if price.get("amount") is None:
+        if not isinstance(specs, list) or not specs:
             return True
 
     return False
@@ -1015,7 +1138,7 @@ def needs_search_fallback(comparison):
 def call_gemini(data):
     api_key = get_gemini_api_key()
 
-    first_comparison, first_response = call_gemini_once(
+    first_comparison = call_gemini_once(
         data,
         api_key,
         use_search=False
@@ -1031,14 +1154,12 @@ def call_gemini(data):
         return first_comparison, metadata
 
     try:
-        fallback_comparison, fallback_response = call_gemini_once(
+        fallback_comparison = call_gemini_once(
             data,
             api_key,
             use_search=True
         )
 
-        # Use the fallback result only if it provides at least
-        # as many product records as the original response.
         fallback_products = fallback_comparison.get("products", [])
         original_products = first_comparison.get("products", [])
 
@@ -1077,16 +1198,19 @@ def handle_ai_summary(event):
 
         normalized = normalize_comparison(
             comparison,
-            data["products"]
+            data["products"],
+            budget=data["budget"]
+        )
+
+        data_retrieved = any(
+            product["retrieval_status"] in ("verified", "partial")
+            for product in normalized["products"]
         )
 
         return response(200, {
             "status": "comparison_generated",
             "model": metadata.get("model", GEMINI_MODEL),
-            "dataRetrieved": any(
-                p["retrieval_status"] in ("verified", "partial")
-                    for p in normalized["products"]
-        ),
+            "dataRetrieved": data_retrieved,
             "metadata": metadata,
             "category": data["category"],
             "budget": data["budget"],
@@ -1136,9 +1260,9 @@ def handle_ai_summary(event):
 # ============================================================
 
 def handle_legacy_validation(event):
-    product_urls = event.get("productUrls")
-
-    submitted, error = validate_product_urls(product_urls)
+    submitted, error = validate_product_urls(
+        event.get("productUrls")
+    )
 
     if error:
         return response(400, {
@@ -1184,8 +1308,8 @@ def lambda_handler(event, context):
             "message": "Invalid request."
         })
 
-    # Handle API Gateway / Lambda Function URL requests.
     request_context = event.get("requestContext", {})
+    method = None
 
     if isinstance(request_context, dict):
         http_context = request_context.get("http", {})
@@ -1193,31 +1317,36 @@ def lambda_handler(event, context):
         if isinstance(http_context, dict):
             method = http_context.get("method")
 
-            if method == "OPTIONS":
-                return response(200, {
-                    "status": "success"
-                })
+    if method == "OPTIONS":
+        return response(200, {"status": "success"})
 
-            if method and method != "POST":
-                return response(405, {
-                    "status": "method_not_allowed",
-                    "message": "Only POST requests are supported."
-                })
+    if method and method != "POST":
+        return response(405, {
+            "status": "method_not_allowed",
+            "message": "Only POST requests are supported."
+        })
 
-    # Parse public Function URL request bodies.
+    # Preserve the Function URL envelope while parsing its body.
     if "body" in event:
         raw_body = event.get("body")
+        is_base64 = event.get("isBase64Encoded", False)
 
         if isinstance(raw_body, str):
-            if len(raw_body.encode("utf-8")) > MAX_BODY_SIZE:
-                return response(413, {
-                    "status": "request_too_large",
-                    "message": "Request body exceeds the allowed size."
-                })
-
             try:
+                if is_base64:
+                    raw_body = base64.b64decode(
+                        raw_body
+                    ).decode("utf-8")
+
+                if len(raw_body.encode("utf-8")) > MAX_BODY_SIZE:
+                    return response(413, {
+                        "status": "request_too_large",
+                        "message": "Request body exceeds the allowed size."
+                    })
+
                 event = json.loads(raw_body)
-            except json.JSONDecodeError:
+
+            except (ValueError, UnicodeDecodeError):
                 return response(400, {
                     "status": "validation_error",
                     "message": "Request body must contain valid JSON."
@@ -1232,32 +1361,13 @@ def lambda_handler(event, context):
                 "message": "Invalid request body."
             })
 
-    # Handle base64-encoded Function URL requests.
-    if isinstance(event, dict) and event.get("isBase64Encoded"):
-        import base64
-
-        try:
-            decoded = base64.b64decode(
-                event.get("body", "")
-            ).decode("utf-8")
-
-            event = json.loads(decoded)
-
-        except Exception:
-            return response(400, {
-                "status": "validation_error",
-                "message": "Unable to decode request body."
-            })
-
     if not isinstance(event, dict):
         return response(400, {
             "status": "validation_error",
             "message": "Invalid request payload."
         })
 
-    action = event.get("action")
-
-    if action == "ai_summary":
+    if event.get("action") == "ai_summary":
         return handle_ai_summary(event)
 
     return handle_legacy_validation(event)

@@ -340,6 +340,25 @@ def safe_text_list(items):
     return result[:5]
 
 
+def safe_evidence_list(items):
+    """Keep only concise strengths/tradeoffs supported by page evidence."""
+    if not isinstance(items, list):
+        return []
+
+    result = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        claim = safe_text(
+            item.get("text") or item.get("description"),
+            default=""
+        )
+        evidence = item.get("evidence")
+        if claim and evidence_is_usable(evidence):
+            result.append(claim)
+    return result[:5]
+
+
 # ============================================================
 # VARIANT VALIDATION
 # ============================================================
@@ -693,9 +712,9 @@ def normalize_comparison(comparison, submitted_products, budget=None):
             default="Unknown"
         )
 
-        # Avoid passing unsupported AI-generated claims to the UI.
-        strengths = []
-        tradeoffs = []
+        # Keep qualitative claims only when Gemini supplies page evidence.
+        strengths = safe_evidence_list(product.get("strengths", []))
+        tradeoffs = safe_evidence_list(product.get("tradeoffs", []))
 
         normalized_products.append({
             "product_name": product_name,
@@ -766,28 +785,53 @@ def normalize_comparison(comparison, submitted_products, budget=None):
         if not isinstance(raw_recommendations, dict):
             raw_recommendations = {}
 
-        allowed_names = {
-            product["product_name"]
-            for product in eligible_products
-        }
+        # Partial colour matches may appear in feature comparison, but
+        # must never be presented as exact product recommendations.
+        recommendation_products = [
+            product for product in eligible_products
+            if product["variant_status"] == "exact"
+            and product["retrieval_status"] == "verified"
+        ]
 
-        def safe_recommendation(value):
-            if isinstance(value, str) and value in allowed_names:
-                return value
+        if len(recommendation_products) < 2:
+            recommendations = {
+                "best_overall": "insufficient data",
+                "best_value": "insufficient data",
+                "best_features": "insufficient data",
+                "reason": (
+                    "At least two products with exact verified variants "
+                    "are required for recommendations."
+                )
+            }
+        else:
+            exact_names = {
+                product["product_name"]
+                for product in recommendation_products
+            }
+            within_budget_names = {
+                product["product_name"]
+                for product in recommendation_products
+                if budget is not None
+                and product["price"]["status"] == "verified"
+                and product["price"]["budget_status"] == "within_budget"
+            }
 
-            return "insufficient data"
+            def safe_recommendation(value, allowed_names):
+                if isinstance(value, str) and value in allowed_names:
+                    return value
+                return "insufficient data"
 
-        recommendations = {
-            "best_overall": safe_recommendation(
-                raw_recommendations.get("best_overall")
-            ),
-            "best_value": safe_recommendation(
-                raw_recommendations.get("best_value")
-            ),
-            "best_features": safe_recommendation(
-                raw_recommendations.get("best_features")
-            )
-        }
+            recommendations = {
+                "best_overall": safe_recommendation(
+                    raw_recommendations.get("best_overall"), exact_names
+                ),
+                "best_value": safe_recommendation(
+                    raw_recommendations.get("best_value"), within_budget_names
+                ),
+                "best_features": safe_recommendation(
+                    raw_recommendations.get("best_features"), exact_names
+                )
+            }
 
     # ========================================================
     # PRICE COMPARISON
@@ -985,20 +1029,28 @@ EVIDENCE RULES:
 12. A product with matching model and storage but different colour
     is partial. Its price belongs to the retrieved colour variant.
 
-13. Compare eligible products when at least two products have
-    matching model and storage, sufficient evidence, and usable
-    specifications. Partial colour matches may participate, but
-    clearly disclose the colour difference.
+13. Partial colour matches may appear in feature comparisons only
+    when model, storage, and specifications are supported. Disclose
+    every variant difference clearly.
 
-14. Never recommend a failed or mismatched product.
+14. Recommend only exact verified variants. Never recommend partial,
+    mismatched, failed, or unknown variants.
 
-15. Never put unsupported prices in summaries or recommendations.
+15. best_value MUST have an evidenced current price at or below the
+    user's budget. If none qualifies, return "insufficient data".
 
-16. Budget does not determine whether product data is verified.
+16. Never put unsupported prices in summaries or recommendations.
+    Do not infer prices from memory, snippets, or limitations.
+
+17. Budget does not determine whether product data is verified.
     Report over-budget products separately.
 
-17. If a page contains only scripts, JavaScript bundles, monitoring
+18. If a page contains only scripts, JavaScript bundles, monitoring
     payloads, or unrelated technical content, mark it failed.
+
+19. Return strengths and tradeoffs only as evidence-backed objects:
+    [{"text":"Short claim","evidence":"Exact page text"}].
+    Use empty arrays when evidence is unavailable.
 
 Return ONLY valid JSON, without Markdown fences.
 
@@ -1037,8 +1089,18 @@ Use this structure:
         "evidence": null
       }},
       "availability": "Available, unavailable, or Unknown",
-      "strengths": [],
-      "tradeoffs": []
+      "strengths": [
+        {
+          "text": "Evidence-backed strength",
+          "evidence": "Exact supporting page text"
+        }
+      ],
+      "tradeoffs": [
+        {
+          "text": "Evidence-backed tradeoff",
+          "evidence": "Exact supporting page text"
+        }
+      ]
     }}
   ],
   "comparison": {{

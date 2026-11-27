@@ -406,5 +406,184 @@ class LambdaHandlerTests(unittest.TestCase):
         self.assertEqual(product["price"]["status"], "not_found")
 
 
+
+    def test_partial_variant_is_never_recommended(self):
+        comparison = {
+            "products": [
+                {
+                    "product_name": "Phone Exact",
+                    "brand": "Brand",
+                    "identity_evidence": "Brand Phone Exact product listing",
+                    "variant_match": True,
+                    "key_specifications": [
+                        {"name": "RAM", "value": "8 GB", "evidence": "8 GB RAM"},
+                        {"name": "Storage", "value": "128 GB", "evidence": "128 GB storage"}
+                    ]
+                },
+                {
+                    "product_name": "Phone Wrong Colour",
+                    "brand": "Brand",
+                    "identity_evidence": "Brand Phone Wrong Colour product listing",
+                    "model_match": True,
+                    "storage_match": True,
+                    "color_match": False,
+                    "key_specifications": [
+                        {"name": "RAM", "value": "8 GB", "evidence": "8 GB RAM"},
+                        {"name": "Storage", "value": "128 GB", "evidence": "128 GB storage"}
+                    ]
+                }
+            ],
+            "comparison": {},
+            "recommendations": {
+                "best_overall": "Phone Wrong Colour",
+                "best_value": "Phone Wrong Colour",
+                "best_features": "Phone Wrong Colour"
+            }
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/exact/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.flipkart.com/partial/p/itm456", "marketplace": "Flipkart"}
+        ]
+
+        result = normalize_comparison(comparison, submitted, budget=30000)
+
+        self.assertEqual(result["products"][1]["variant_status"], "partial")
+        self.assertEqual(result["recommendations"]["best_overall"], "insufficient data")
+        self.assertEqual(result["recommendations"]["best_value"], "insufficient data")
+        self.assertEqual(result["recommendations"]["best_features"], "insufficient data")
+
+    def test_best_value_rejects_over_budget_product(self):
+        comparison = {
+            "products": [
+                {
+                    "product_name": "Affordable Phone",
+                    "brand": "Brand",
+                    "identity_evidence": "Brand Affordable Phone product listing",
+                    "variant_match": True,
+                    "price": {
+                        "amount": 25000,
+                        "evidence": "Special price ₹25,000"
+                    },
+                    "key_specifications": [
+                        {"name": "RAM", "value": "8 GB", "evidence": "8 GB RAM"},
+                        {"name": "Storage", "value": "128 GB", "evidence": "128 GB storage"}
+                    ]
+                },
+                {
+                    "product_name": "Expensive Phone",
+                    "brand": "Brand",
+                    "identity_evidence": "Brand Expensive Phone product listing",
+                    "variant_match": True,
+                    "price": {
+                        "amount": 90000,
+                        "evidence": "Special price ₹90,000"
+                    },
+                    "key_specifications": [
+                        {"name": "RAM", "value": "12 GB", "evidence": "12 GB RAM"},
+                        {"name": "Storage", "value": "256 GB", "evidence": "256 GB storage"}
+                    ]
+                }
+            ],
+            "comparison": {},
+            "recommendations": {
+                "best_overall": "Expensive Phone",
+                "best_value": "Expensive Phone",
+                "best_features": "Expensive Phone"
+            }
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/affordable/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0EXPENSIVE1", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted, budget=70000)
+
+        self.assertEqual(result["recommendations"]["best_overall"], "Expensive Phone")
+        self.assertEqual(result["recommendations"]["best_value"], "insufficient data")
+        self.assertEqual(result["recommendations"]["best_features"], "Expensive Phone")
+
+    def test_best_value_can_only_select_an_exact_verified_within_budget_product(self):
+        comparison = {
+            "products": [
+                {
+                    "product_name": "Affordable Phone",
+                    "brand": "Brand",
+                    "identity_evidence": "Brand Affordable Phone product listing",
+                    "variant_match": True,
+                    "price": {
+                        "amount": 25000,
+                        "evidence": "Special price ₹25,000"
+                    },
+                    "key_specifications": [
+                        {"name": "RAM", "value": "8 GB", "evidence": "8 GB RAM"},
+                        {"name": "Storage", "value": "128 GB", "evidence": "128 GB storage"}
+                    ]
+                },
+                {
+                    "product_name": "Expensive Phone",
+                    "brand": "Brand",
+                    "identity_evidence": "Brand Expensive Phone product listing",
+                    "variant_match": True,
+                    "price": {
+                        "amount": 90000,
+                        "evidence": "Special price ₹90,000"
+                    },
+                    "key_specifications": [
+                        {"name": "RAM", "value": "12 GB", "evidence": "12 GB RAM"},
+                        {"name": "Storage", "value": "256 GB", "evidence": "256 GB storage"}
+                    ]
+                }
+            ],
+            "comparison": {},
+            "recommendations": {
+                "best_overall": "Affordable Phone",
+                "best_value": "Affordable Phone",
+                "best_features": "Expensive Phone"
+            }
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/affordable/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0EXPENSIVE1", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted, budget=70000)
+
+        self.assertEqual(result["recommendations"]["best_value"], "Affordable Phone")
+
+    def test_strengths_and_tradeoffs_require_page_evidence(self):
+        comparison = {
+            "products": [
+                {
+                    "product_name": "Phone X",
+                    "brand": "Brand X",
+                    "identity_evidence": "Brand X Phone X product listing",
+                    "variant_match": True,
+                    "strengths": [
+                        {"text": "Large battery", "evidence": "5000 mAh battery capacity"},
+                        {"text": "Unsupported fast charging claim"}
+                    ],
+                    "tradeoffs": [
+                        {"text": "Heavy device", "evidence": "Weight: 220 g"}
+                    ],
+                    "key_specifications": [
+                        {"name": "Battery", "value": "5000 mAh", "evidence": "5000 mAh battery capacity"},
+                        {"name": "Weight", "value": "220 g", "evidence": "Weight: 220 g"}
+                    ]
+                }
+            ],
+            "comparison": {},
+            "recommendations": {}
+        }
+        submitted = [
+            {"url": "https://www.flipkart.com/phone-x/p/itm123", "marketplace": "Flipkart"},
+            {"url": "https://www.amazon.in/dp/B0TEST12345", "marketplace": "Amazon"}
+        ]
+
+        result = normalize_comparison(comparison, submitted)
+        product = result["products"][0]
+
+        self.assertEqual(product["strengths"], ["Large battery"])
+        self.assertEqual(product["tradeoffs"], ["Heavy device"])
+
 if __name__ == "__main__":
     unittest.main()

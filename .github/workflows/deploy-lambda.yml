@@ -95,6 +95,19 @@ jobs:
             --zip-file fileb://lambda-deployment.zip \
             --region us-east-1
 
+      - name: Set Lambda execution timeout
+        run: |
+          aws lambda update-function-configuration \
+            --function-name website-compare \
+            --timeout 90 \
+            --region us-east-1
+
+      - name: Wait for Lambda configuration update
+        run: |
+          aws lambda wait function-updated \
+            --function-name website-compare \
+            --region us-east-1
+
       - name: Wait for Lambda update
         run: |
           aws lambda wait function-updated \

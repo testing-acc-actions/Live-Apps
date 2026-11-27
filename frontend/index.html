@@ -210,7 +210,16 @@ function addList(parent, heading, items) {
 
 function renderResults(data) {
   const result = data.result || {};
-  document.getElementById("summary").textContent = result.summary || "No summary was returned.";
+  const summarySection = document.getElementById("summary").closest(".result-section");
+  if (typeof result.summary === "string" && result.summary.trim()) {
+    document.getElementById("summary").textContent = result.summary;
+    summarySection.hidden = false;
+  } else {
+    // The backend returns evidence and structured comparison data, not a
+    // separate prose summary. Hide this optional panel instead of implying
+    // that a successful comparison should always contain one.
+    summarySection.hidden = true;
+  }
   const productResults = document.getElementById("productResults");
   productResults.replaceChildren();
 
@@ -343,7 +352,9 @@ form.addEventListener("submit", async event => {
       if (response.status === 403) {
         setStatus("The backend is currently protected against public AI requests. The website form is ready, but public comparison will be enabled after we add API abuse protection.", "error");
       } else {
-        setStatus((data.message || "The comparison request failed.") + " (HTTP " + response.status + ")", "error");
+        const upstream = data.upstreamStatus ? " Gemini status " + data.upstreamStatus + "." : "";
+        const details = data.details ? " Details: " + String(data.details).slice(0, 350) : "";
+        setStatus((data.message || "The comparison request failed.") + upstream + " (HTTP " + response.status + ")." + details, "error");
       }
       return;
     }
@@ -352,7 +363,11 @@ form.addEventListener("submit", async event => {
       setStatus(data.message || "The comparison could not be generated.", "error");
       return;
     }
-    setStatus("Comparison generated. Review the retrieved information and its limitations below.", "success");
+    if (data.dataRetrieved === true) {
+      setStatus("Product information was retrieved. Review the evidence and limitations below.", "success");
+    } else {
+      setStatus("The request completed, but usable product information could not be verified. No recommendation should be treated as reliable.", "info");
+    }
     renderResults(data);
   } catch (error) {
     const message = error && error.message ? error.message : "The request could not be completed.";
